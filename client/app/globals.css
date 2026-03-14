@@ -1,0 +1,68 @@
+﻿@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-midnight text-white font-body antialiased;
+}
+
+.bg-cyber {
+  background-image: radial-gradient(circle at 20% 20%, rgba(57, 255, 180, 0.12), transparent 45%),
+    radial-gradient(circle at 80% 20%, rgba(90, 215, 255, 0.12), transparent 40%),
+    radial-gradient(circle at 50% 90%, rgba(255, 138, 92, 0.18), transparent 45%),
+    linear-gradient(180deg, #0a1020 0%, #0b1224 40%, #0a0f1d 100%);
+}
+
+.grid-overlay {
+  background-size: 42px 42px;
+  background-image: linear-gradient(rgba(90, 215, 255, 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(90, 215, 255, 0.12) 1px, transparent 1px);
+  opacity: 0.4;
+}
+
+html.theme-light body {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+html.theme-light .bg-cyber {
+  background-image: linear-gradient(180deg, #f8fafc 0%, #eef2ff 60%, #e2e8f0 100%);
+}
+
+html.theme-light .grid-overlay {
+  opacity: 0.08;
+}
+
+html.theme-light .bg-carbon\/80,
+html.theme-light .bg-carbon\/70,
+html.theme-light .bg-carbon\/60,
+html.theme-light .bg-midnight {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border-color: #e2e8f0 !important;
+}
+
+html.theme-light .text-slate-400,
+html.theme-light .text-slate-300,
+html.theme-light .text-slate-200 {
+  color: #475569 !important;
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+.floaty {
+  animation: float 6s ease-in-out infinite;
+}

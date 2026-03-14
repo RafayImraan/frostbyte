@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>AI CyberShield</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>AI CyberShield</h1>
+      <p class="subtitle">Real-time scam protection</p>
+
+      <div id="status" class="status">Waiting for scan...</div>
+      <button id="scan-now" class="scan-btn">Scan Now</button>
+
+      <div class="card">
+        <div class="row">
+          <span>Risk Level</span>
+          <strong id="risk-level">--</strong>
+        </div>
+        <div class="meter">
+          <div id="meter-fill" class="meter-fill"></div>
+        </div>
+        <div class="row">
+          <span>Scam Probability</span>
+          <strong id="probability">--</strong>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <span>Threat Feeds</span>
+          <strong id="feeds">--</strong>
+        </div>
+        <div class="row">
+          <span>Feed Updated</span>
+          <strong id="feed-updated">--</strong>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <span>Confidence</span>
+          <strong id="confidence">--</strong>
+        </div>
+      </div>
+
+      <ul id="reasons" class="reasons"></ul>
+
+      <div class="actions">
+        <button id="copy-report" class="ghost-btn">Copy Report</button>
+        <button id="report-admin" class="ghost-btn">Report to Admin</button>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <span>Auto‑Block</span>
+          <label class="switch">
+            <input id="auto-block" type="checkbox" />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="row">
+          <span>Dark Mode</span>
+          <label class="switch">
+            <input id="theme-toggle" type="checkbox" />
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="row">
+          <span>History Scan</span>
+          <button id="scan-history" class="ghost-btn">Scan Now</button>
+        </div>
+        <p id="history-summary" class="small">No history scan yet.</p>
+      </div>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

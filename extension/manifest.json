@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "AI CyberShield",
+  "version": "0.1.0",
+  "description": "Real-time scam protection powered by AI CyberShield.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "AI CyberShield"
+  },
+  "permissions": ["storage", "activeTab", "tabs", "alarms", "history"],
+  "host_permissions": ["http://localhost:8000/*", "<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

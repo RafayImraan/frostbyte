@@ -1,0 +1,14 @@
+﻿# Node
+node_modules/
+client/.next/
+
+# Python
+__pycache__/
+*.pyc
+server/.venv/
+
+# SQLite
+server/data/*.db
+
+# Env
+.env
