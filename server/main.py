@@ -168,6 +168,9 @@ def init_db() -> None:
             scan_status TEXT,
             ai_provider TEXT,
             ai_model TEXT,
+            highlights TEXT,
+            confidence TEXT,
+            behavior_signals TEXT,
             created_at TEXT
         )
         """
@@ -189,6 +192,9 @@ def init_db() -> None:
         ("scan_status", "TEXT"),
         ("ai_provider", "TEXT"),
         ("ai_model", "TEXT"),
+        ("highlights", "TEXT"),
+        ("confidence", "TEXT"),
+        ("behavior_signals", "TEXT"),
     ]:
         if column not in existing:
             cursor.execute(f"ALTER TABLE scans ADD COLUMN {column} {col_type}")
@@ -201,8 +207,8 @@ def store_scan(payload: AnalyzeResponse) -> None:
     cursor = conn.cursor()
     cursor.execute(
         """
-        INSERT INTO scans (id, input, scam_probability, risk_score, risk_level, categories, reasons, patterns, url_findings, threat_intel_status, scan_status, ai_provider, ai_model, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO scans (id, input, scam_probability, risk_score, risk_level, categories, reasons, patterns, url_findings, threat_intel_status, scan_status, ai_provider, ai_model, highlights, confidence, behavior_signals, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             payload.id,
@@ -218,6 +224,9 @@ def store_scan(payload: AnalyzeResponse) -> None:
             payload.scan_status,
             payload.ai_provider,
             payload.ai_model,
+            json.dumps(payload.highlights),
+            json.dumps(payload.confidence),
+            json.dumps(payload.behavior_signals),
             payload.created_at,
         ),
     )
@@ -237,7 +246,7 @@ def update_scan(scan_id: str, payload: AnalyzeResponse) -> None:
     cursor.execute(
         """
         UPDATE scans
-        SET scam_probability = ?, risk_score = ?, risk_level = ?, categories = ?, reasons = ?, patterns = ?, url_findings = ?, threat_intel_status = ?, scan_status = ?, ai_provider = ?, ai_model = ?, created_at = ?
+        SET scam_probability = ?, risk_score = ?, risk_level = ?, categories = ?, reasons = ?, patterns = ?, url_findings = ?, threat_intel_status = ?, scan_status = ?, ai_provider = ?, ai_model = ?, highlights = ?, confidence = ?, behavior_signals = ?, created_at = ?
         WHERE id = ?
         """,
         (
@@ -252,6 +261,9 @@ def update_scan(scan_id: str, payload: AnalyzeResponse) -> None:
             payload.scan_status,
             payload.ai_provider,
             payload.ai_model,
+            json.dumps(payload.highlights),
+            json.dumps(payload.confidence),
+            json.dumps(payload.behavior_signals),
             payload.created_at,
             scan_id,
         ),
@@ -921,7 +933,7 @@ async def history() -> List[AnalyzeResponse]:
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, input, scam_probability, risk_score, risk_level, categories, reasons, patterns, url_findings, threat_intel_status, scan_status, ai_provider, ai_model, created_at FROM scans ORDER BY created_at DESC LIMIT 50"
+        "SELECT id, input, scam_probability, risk_score, risk_level, categories, reasons, patterns, url_findings, threat_intel_status, scan_status, ai_provider, ai_model, highlights, confidence, behavior_signals, created_at FROM scans ORDER BY created_at DESC LIMIT 50"
     )
     rows = cursor.fetchall()
     conn.close()
@@ -943,7 +955,10 @@ async def history() -> List[AnalyzeResponse]:
                 scan_status=row[10] or "complete",
                 ai_provider=row[11] or "rules",
                 ai_model=row[12] or "rules-engine",
-                created_at=row[13],
+                highlights=json.loads(row[13]) if row[13] else [],
+                confidence=json.loads(row[14]) if row[14] else {"low": 0.0, "mid": 0.0, "high": 0.0, "confidence": 0.0},
+                behavior_signals=json.loads(row[15]) if row[15] else {},
+                created_at=row[16],
             )
         )
     return results
@@ -954,7 +969,7 @@ async def scan_detail(scan_id: str) -> AnalyzeResponse:
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, input, scam_probability, risk_score, risk_level, categories, reasons, patterns, url_findings, threat_intel_status, scan_status, ai_provider, ai_model, created_at FROM scans WHERE id = ?",
+        "SELECT id, input, scam_probability, risk_score, risk_level, categories, reasons, patterns, url_findings, threat_intel_status, scan_status, ai_provider, ai_model, highlights, confidence, behavior_signals, created_at FROM scans WHERE id = ?",
         (scan_id,),
     )
     row = cursor.fetchone()
@@ -975,10 +990,10 @@ async def scan_detail(scan_id: str) -> AnalyzeResponse:
         scan_status=row[10] or "complete",
         ai_provider=row[11] or "rules",
         ai_model=row[12] or "rules-engine",
-        highlights=[],
-        confidence={"low": 0.0, "mid": 0.0, "high": 0.0, "confidence": 0.0},
-        behavior_signals={},
-        created_at=row[13],
+        highlights=json.loads(row[13]) if row[13] else [],
+        confidence=json.loads(row[14]) if row[14] else {"low": 0.0, "mid": 0.0, "high": 0.0, "confidence": 0.0},
+        behavior_signals=json.loads(row[15]) if row[15] else {},
+        created_at=row[16],
     )
 
 
