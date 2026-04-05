@@ -1177,6 +1177,13 @@ def risk_level(score: int) -> str:
     return "Low"
 
 
+def effective_risk_level(score: int, probability: int) -> str:
+    base = risk_level(score)
+    probability_level = risk_level(probability)
+    priority = {"Low": 1, "Medium": 2, "High": 3}
+    return probability_level if priority[probability_level] > priority[base] else base
+
+
 def merge_status(current: str | None, incoming: str) -> str:
     priority = {
         "hit": 6,
@@ -1224,7 +1231,7 @@ def apply_intel_update(
     scan_status = "complete"
     response.risk_score = risk_score_value
     response.scam_probability = int(round(max((1 - response.categories["safe"]) * 100, risk_score_value * 0.9)))
-    response.risk_level = risk_level(risk_score_value)
+    response.risk_level = effective_risk_level(risk_score_value, response.scam_probability)
     response.reasons = reasons
     response.url_findings = url_findings
     response.threat_intel_status = intel_status
@@ -1298,7 +1305,7 @@ async def analyze_text_and_urls(
     combined_behavior_score = min(100, url_score + behavior_score)
     risk_score_value = min(100, compute_risk_score(ai_primary, pattern_score, combined_behavior_score) + behavior_bonus)
     scam_probability = int(round(max(ai_primary * 100, risk_score_value * 0.9)))
-    risk = risk_level(risk_score_value)
+    risk = effective_risk_level(risk_score_value, scam_probability)
 
     reasons = build_reasons(patterns, url_reasons)
     reasons.extend(behavior_reasons)

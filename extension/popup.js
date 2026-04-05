@@ -4,6 +4,13 @@
   return entries.map(([key, value]) => `${key}: ${value}`).join(" | ");
 }
 
+function deriveRiskLevel(result) {
+  const probability = result?.scam_probability || 0;
+  if (probability >= 75) return "High";
+  if (probability >= 45) return "Medium";
+  return result?.risk_level || "Low";
+}
+
 function updatePopup(result) {
   const statusText =
     result.scan_status === "pending"
@@ -14,9 +21,10 @@ function updatePopup(result) {
 
   document.getElementById("status").textContent = statusText;
   const riskEl = document.getElementById("risk-level");
-  riskEl.textContent = result.risk_level.toUpperCase();
+  const displayRisk = deriveRiskLevel(result);
+  riskEl.textContent = displayRisk.toUpperCase();
   riskEl.style.color =
-    result.risk_level === "High" ? "#f87171" : result.risk_level === "Medium" ? "#f59e0b" : "#22c55e";
+    displayRisk === "High" ? "#f87171" : displayRisk === "Medium" ? "#f59e0b" : "#22c55e";
 
   document.getElementById("probability").textContent = `${result.scam_probability}%`;
   document.getElementById("feeds").textContent = formatFeeds(result.threat_intel_status);
@@ -39,7 +47,7 @@ function updatePopup(result) {
 
   const summary = {
     url: result.url || "",
-    risk_level: result.risk_level,
+    risk_level: displayRisk,
     scam_probability: result.scam_probability,
     reasons: result.reasons,
     casefile: result.threat_casefile?.archetype,
