@@ -1,36 +1,38 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { fetchScan, getLatest, saveLatest, AnalysisResult } from "../../lib/api";
+import { AnalysisResult, fetchScan, getLatest, saveLatest } from "../../lib/api";
 import { Logo } from "../../components/Logo";
 import { RiskMeter } from "../../components/RiskMeter";
 import { ThreatFeedStatus } from "../../components/ThreatFeedStatus";
 
+const manipulationKeys = [
+  { key: "fear", label: "Fear" },
+  { key: "urgency", label: "Urgency" },
+  { key: "authority", label: "Authority" },
+  { key: "greed", label: "Greed" },
+  { key: "trust", label: "Trust Hijack" },
+  { key: "confusion", label: "Confusion" },
+] as const;
+
+function StatTile({ label, value, tone = "text-white" }: { label: string; value: string; tone?: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-700 bg-midnight p-4">
+      <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{label}</p>
+      <p className={`mt-3 text-xl font-semibold ${tone}`}>{value}</p>
+    </div>
+  );
+}
+
 export default function ResultsPage() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [feedUpdated, setFeedUpdated] = useState<string>("Live feeds: URLhaus + VirusTotal");
-  const [feedNotice, setFeedNotice] = useState<string>("");
-  const [explanation, setExplanation] = useState<string>("");
+  const [explanation, setExplanation] = useState("");
   const [explaining, setExplaining] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
     setResult(getLatest());
-  }, []);
-
-  useEffect(() => {
-    fetch("http://localhost:8000/feeds/status")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!data) return;
-        if (data.feeds_disabled) {
-          setFeedNotice("");
-          setFeedUpdated("Live feeds: URLhaus + VirusTotal");
-          return;
-        }
-      })
-      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -43,7 +45,7 @@ export default function ResultsPage() {
         if (updated.scan_status !== "pending") {
           clearInterval(interval);
         }
-      } catch (error) {
+      } catch {
         clearInterval(interval);
       }
     }, 3500);
@@ -54,10 +56,10 @@ export default function ResultsPage() {
     return (
       <div className="px-6 py-10 md:px-16 lg:px-24">
         <Logo />
-        <div className="mt-10 bg-carbon/80 border border-slate-700 rounded-2xl p-6">
+        <div className="mt-10 rounded-2xl border border-slate-700 bg-carbon/80 p-6">
           <p className="text-slate-300">No analysis found. Run a scan to see results.</p>
           <button
-            className="mt-4 px-5 py-2 rounded-full bg-neon text-midnight font-semibold"
+            className="mt-4 rounded-full bg-neon px-5 py-2 font-semibold text-midnight"
             onClick={() => router.push("/analyze")}
           >
             Go to Analyzer
@@ -67,100 +69,217 @@ export default function ResultsPage() {
     );
   }
 
-  const feedHits = result
-    ? Object.entries(result.threat_intel_status).filter(([, value]) => value === "hit")
-    : [];
-  const feedCount = result ? Object.keys(result.threat_intel_status).length : 0;
-  const feedImpact = feedCount ? Math.round((feedHits.length / feedCount) * 100) : 0;
-  const feedColor =
-    feedImpact >= 60 ? "from-rose-500" : feedImpact >= 30 ? "from-amber-400" : "from-emerald-400";
-
-  const categoryTop = result
-    ? Object.entries(result.categories).sort((a, b) => b[1] - a[1])[0]
-    : null;
-  const oneLineExplanation = result
-    ? `Likely ${result.risk_level.toLowerCase()} risk — model leans ${categoryTop ? categoryTop[0].replace("_", " ") : "unknown"} (${Math.round((categoryTop?.[1] ?? 0) * 100)}%) with confidence ${Math.round(result.confidence.confidence * 100)}%.`
-    : "";
+  const casefile = result.threat_casefile;
+  const impact = result.impact_forecast;
+  const manipulation = result.manipulation_map;
+  const riskTone =
+    result.risk_level === "High" ? "text-rose-300" : result.risk_level === "Medium" ? "text-amber-300" : "text-emerald-300";
+  const topCategory = Object.entries(result.categories).sort((a, b) => b[1] - a[1])[0];
 
   return (
     <div className="px-6 py-10 md:px-16 lg:px-24">
-      <header className="flex items-center justify-between">
+      <header className="flex items-center justify-between gap-4">
         <Logo />
         <div className="flex gap-3">
           <button
-            className="px-4 py-2 rounded-full border border-slate-600 text-slate-200"
+            className="rounded-full border border-slate-600 px-4 py-2 text-slate-200"
             onClick={() => router.push("/analyze")}
           >
             New Scan
           </button>
           <button
-            className="px-4 py-2 rounded-full border border-slate-600 text-slate-200"
+            className="rounded-full border border-slate-600 px-4 py-2 text-slate-200"
             onClick={() => router.push("/history")}
           >
-            History
+            Command Center
           </button>
         </div>
       </header>
 
-      <section className="mt-12 grid lg:grid-cols-[2fr_1fr] gap-8">
-        <div className="bg-carbon/80 border border-slate-700 rounded-3xl p-6">
-          <p className="text-xs text-slate-400">Scanned Message</p>
-          <p className="mt-3 text-sm text-slate-200 whitespace-pre-line">{result.input}</p>
-          <div className="mt-6 grid md:grid-cols-2 gap-4">
-            <div className="bg-midnight border border-slate-700 rounded-2xl p-4">
-              <p className="text-xs text-slate-400">Scam Probability</p>
-              <p className="text-2xl font-semibold mt-2">{result.scam_probability}%</p>
+      <section className="mt-12 grid gap-8 lg:grid-cols-[1.5fr_1fr]">
+        <div className="space-y-6">
+          <div className="rounded-[2rem] border border-slate-700 bg-carbon/80 p-7 shadow-haze">
+            <p className="text-xs uppercase tracking-[0.28em] text-neon">Scam Intent Engine</p>
+            <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+              <div>
+                <h1 className="text-3xl font-display md:text-4xl">{casefile.archetype}</h1>
+                <p className="mt-3 max-w-3xl text-slate-300">{casefile.narrative}</p>
+              </div>
+              <div className="min-w-[190px] rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3">
+                <p className="text-xs text-slate-400">Predicted attacker success</p>
+                <p className={`mt-2 text-3xl font-semibold ${riskTone}`}>{result.scam_probability}%</p>
+              </div>
             </div>
-            <div className="bg-midnight border border-slate-700 rounded-2xl p-4">
-              <p className="text-xs text-slate-400">Risk Level</p>
-              <p className={`text-2xl font-semibold mt-2 ${result.risk_level === "High" ? "text-ember" : result.risk_level === "Medium" ? "text-amber-300" : "text-emerald-300"}`}>
-                {result.risk_level.toUpperCase()}
+
+            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <StatTile label="Risk Level" value={result.risk_level.toUpperCase()} tone={riskTone} />
+              <StatTile label="Victim Persona" value={casefile.victim_persona} />
+              <StatTile label="Primary Target" value={impact.primary_target} />
+              <StatTile label="Mutation Risk" value={`${casefile.mutation_risk}/100`} tone="text-cyan-300" />
+            </div>
+
+            <div className="mt-6 grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+              <div className="rounded-3xl border border-slate-700 bg-midnight p-5">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Attack Forecast</p>
+                <div className="mt-4 space-y-4">
+                  <div>
+                    <p className="text-sm text-slate-400">Likely next move</p>
+                    <p className="mt-1 text-sm text-slate-200">{casefile.next_move_prediction}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-400">Likely damage</p>
+                    <p className="mt-1 text-sm text-slate-200">{impact.likely_damage}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-400">Loss window</p>
+                    <p className="mt-1 text-sm text-slate-200">{impact.loss_window}</p>
+                  </div>
+                </div>
+                <div className="mt-5 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-amber-200">Intervention</p>
+                  <p className="mt-2 text-sm text-amber-50">{impact.intervention_message}</p>
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-slate-700 bg-midnight p-5">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Safe Response Playbook</p>
+                <div className="mt-4 space-y-3">
+                  {casefile.immediate_actions.map((action) => (
+                    <div key={action} className="rounded-2xl border border-slate-700 bg-carbon/50 px-4 py-3 text-sm text-slate-200">
+                      {action}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-5 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-cyan-200">Safe Alternative</p>
+                  <p className="mt-2 text-sm text-cyan-50">{impact.safe_alternative}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+            <div className="rounded-[2rem] border border-slate-700 bg-carbon/80 p-6">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Evidence</p>
+                  <h2 className="mt-2 text-xl font-display">Scanned Input</h2>
+                </div>
+                <div className="text-right text-xs text-slate-400">
+                  <p>{new Date(result.created_at).toLocaleString()}</p>
+                  <p>{Math.round(result.confidence.confidence * 100)}% confidence</p>
+                </div>
+              </div>
+              <p className="mt-5 whitespace-pre-line rounded-3xl border border-slate-700 bg-midnight p-5 text-sm leading-relaxed text-slate-200">
+                {result.input}
               </p>
+
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
+                <RiskMeter score={result.risk_score} />
+                <div className="rounded-2xl border border-slate-700 bg-midnight p-4">
+                  <p className="text-xs text-slate-400">Model leaning</p>
+                  <p className="mt-2 text-xl font-semibold text-cyan-300">
+                    {topCategory ? `${topCategory[0].replace("_", " ")} ${Math.round(topCategory[1] * 100)}%` : "Unknown"}
+                  </p>
+                  <p className="mt-2 text-xs text-slate-500">
+                    Confidence band: low {Math.round(result.confidence.low * 100)}% / mid {Math.round(result.confidence.mid * 100)}% / high {Math.round(result.confidence.high * 100)}%
+                  </p>
+                </div>
+              </div>
             </div>
-            <RiskMeter score={result.risk_score} />
-            <div className="bg-midnight border border-slate-700 rounded-2xl p-4">
-              <p className="text-xs text-slate-400">Analysis Timestamp</p>
-              <p className="text-sm mt-2">{new Date(result.created_at).toLocaleString()}</p>
+
+            <div className="space-y-6">
+              <ThreatFeedStatus
+                statusMap={result.threat_intel_status}
+                scanStatus={result.scan_status}
+                aiProvider={result.ai_provider}
+                aiModel={result.ai_model}
+              />
+
+              <div className="rounded-[2rem] border border-slate-700 bg-carbon/80 p-6">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Threat DNA</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {casefile.campaign_signature.length ? (
+                    casefile.campaign_signature.map((tag) => (
+                      <span key={tag} className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-200">
+                        {tag}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-sm text-slate-400">No signature tokens captured.</span>
+                  )}
+                </div>
+                <div className="mt-6">
+                  <p className="text-sm text-slate-400">Detected issues</p>
+                  <div className="mt-3 space-y-2">
+                    {result.reasons.map((reason) => (
+                      <div key={reason} className="rounded-2xl border border-slate-700 bg-midnight px-4 py-3 text-sm text-slate-200">
+                        {reason}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="space-y-4">
-          <ThreatFeedStatus
-            statusMap={result.threat_intel_status}
-            scanStatus={result.scan_status}
-            aiProvider={result.ai_provider}
-            aiModel={result.ai_model}
-          />
-          <div className="bg-carbon/80 border border-slate-700 rounded-3xl p-6">
-            <h2 className="font-display text-lg">Live Threat Feed Meter</h2>
-            <p className="text-xs text-slate-400 mt-1">Last updated: {feedUpdated}</p>
-            {feedNotice && <p className="text-xs text-amber-300 mt-1">{feedNotice}</p>}
-            <div className="mt-4 h-2 rounded-full bg-slate-800">
-              <div
-                className={`h-2 rounded-full bg-gradient-to-r ${feedColor} to-neon`}
-                style={{ width: `${feedImpact}%` }}
-              />
+        <div className="space-y-6">
+          <div className="rounded-[2rem] border border-slate-700 bg-carbon/80 p-6">
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Psychological Manipulation Map</p>
+            <p className="mt-2 text-sm text-slate-300">{manipulation.summary}</p>
+            <div className="mt-5 space-y-3">
+              {manipulationKeys.map(({ key, label }) => {
+                const value = manipulation[key];
+                return (
+                  <div key={key}>
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span>{label}</span>
+                      <span>{value}/100</span>
+                    </div>
+                    <div className="mt-2 h-2 rounded-full bg-slate-800">
+                      <div
+                        className="h-2 rounded-full bg-gradient-to-r from-cyan-400 via-amber-400 to-rose-500"
+                        style={{ width: `${value}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <p className="text-xs text-slate-400 mt-2">{feedHits.length} feed hit(s) detected</p>
-          </div>
-          <div className="bg-carbon/80 border border-slate-700 rounded-3xl p-6">
-            <h2 className="font-display text-lg">Detected Issues</h2>
-            <ul className="mt-4 text-sm text-slate-300 space-y-2">
-              {result.reasons.map((reason, index) => (
-                <li key={index}>• {reason}</li>
+            <div className="mt-6 space-y-3">
+              {manipulation.pressure_points.map((point, index) => (
+                <div key={`${point.trigger}-${index}`} className="rounded-2xl border border-slate-700 bg-midnight p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-rose-200">{point.label}</p>
+                  <p className="mt-2 text-sm text-white">{point.trigger}</p>
+                  <p className="mt-2 text-xs text-slate-400">{point.meaning}</p>
+                </div>
               ))}
-            </ul>
+            </div>
           </div>
-          <div className="bg-carbon/80 border border-slate-700 rounded-3xl p-6">
-            <h2 className="font-display text-lg">AI Assistant Explanation</h2>
-            <p className="text-xs text-slate-400 mt-1">
-              Generates a plain‑language explanation (uses OpenAI if configured).
+
+          <div className="rounded-[2rem] border border-slate-700 bg-carbon/80 p-6">
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Escalation Path</p>
+            <div className="mt-4 space-y-3">
+              {impact.escalation_path.map((step, index) => (
+                <div key={step} className="rounded-2xl border border-slate-700 bg-midnight px-4 py-3 text-sm text-slate-200">
+                  <span className="mr-3 inline-flex h-6 w-6 items-center justify-center rounded-full bg-rose-500/20 text-xs text-rose-200">
+                    {index + 1}
+                  </span>
+                  {step}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-[2rem] border border-slate-700 bg-carbon/80 p-6">
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-500">AI Copilot Brief</p>
+            <p className="mt-2 text-sm text-slate-400">
+              Generates a plain-language explanation for security reporting, user awareness, and incident response workflows.
             </p>
             <button
-              className="mt-4 px-4 py-2 rounded-full bg-neon text-midnight text-sm font-semibold"
+              className="mt-4 rounded-full bg-neon px-4 py-2 text-sm font-semibold text-midnight"
               onClick={async () => {
-                if (!result) return;
                 setExplaining(true);
                 try {
                   const res = await fetch("http://localhost:8000/explain", {
@@ -175,7 +294,7 @@ export default function ResultsPage() {
                   });
                   const data = await res.json();
                   setExplanation(data.explanation || "No explanation returned.");
-                } catch (err) {
+                } catch {
                   setExplanation("Unable to generate explanation.");
                 } finally {
                   setExplaining(false);
@@ -183,151 +302,14 @@ export default function ResultsPage() {
               }}
               disabled={explaining}
             >
-              {explaining ? "Generating..." : "Explain with AI"}
+              {explaining ? "Generating..." : "Generate Brief"}
             </button>
             {explanation && (
-              <div className="mt-4 text-sm text-slate-300 whitespace-pre-line">
+              <div className="mt-4 whitespace-pre-line rounded-3xl border border-slate-700 bg-midnight p-4 text-sm text-slate-200">
                 {explanation}
               </div>
             )}
           </div>
-          <div className="bg-carbon/80 border border-slate-700 rounded-3xl p-6">
-            <h2 className="font-display text-lg">Explainable AI Highlights</h2>
-            {result.highlights.length === 0 ? (
-              <p className="text-sm text-slate-400 mt-3">No suspicious phrases detected.</p>
-            ) : (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {result.highlights.map((item) => (
-                  <span
-                    key={item}
-                    className="px-3 py-1 rounded-full bg-rose-500/10 border border-rose-400/30 text-xs text-rose-200"
-                  >
-                    {item}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="bg-carbon/80 border border-slate-700 rounded-3xl p-6">
-            <h2 className="font-display text-lg">Pattern Matches</h2>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {result.patterns.map((pattern, index) => (
-                <span key={index} className="px-3 py-1 rounded-full bg-midnight border border-slate-700 text-xs">
-                  {pattern}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div className="bg-carbon/80 border border-slate-700 rounded-3xl p-6">
-            <h2 className="font-display text-lg">Confidence Band</h2>
-            <div className="mt-3 h-2 rounded-full bg-slate-800">
-              <div
-                className="h-2 rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-500"
-                style={{ width: `${Math.round(result.confidence.mid * 100)}%` }}
-              />
-            </div>
-            <div className="mt-3 flex justify-between text-xs text-slate-400">
-              <span>Low {Math.round(result.confidence.low * 100)}%</span>
-              <span>Mid {Math.round(result.confidence.mid * 100)}%</span>
-              <span>High {Math.round(result.confidence.high * 100)}%</span>
-            </div>
-            <div className="mt-4 grid grid-cols-3 gap-2 text-xs text-slate-300">
-              <div className="bg-midnight border border-slate-700 rounded-lg p-3 text-center">
-                <p className="text-slate-400">Low</p>
-                <p className="mt-1 text-emerald-300">{Math.round(result.confidence.low * 100)}%</p>
-              </div>
-              <div className="bg-midnight border border-slate-700 rounded-lg p-3 text-center">
-                <p className="text-slate-400">Mid</p>
-                <p className="mt-1 text-amber-300">{Math.round(result.confidence.mid * 100)}%</p>
-              </div>
-              <div className="bg-midnight border border-slate-700 rounded-lg p-3 text-center">
-                <p className="text-slate-400">High</p>
-                <p className="mt-1 text-rose-300">{Math.round(result.confidence.high * 100)}%</p>
-              </div>
-            </div>
-            <p className="mt-4 text-xs text-slate-400">{oneLineExplanation}</p>
-          </div>
-          <div className="bg-carbon/80 border border-slate-700 rounded-3xl p-6">
-            <h2 className="font-display text-lg">Behavioral Signals</h2>
-            {Object.keys(result.behavior_signals).length === 0 ? (
-              <p className="text-sm text-slate-400 mt-3">No behavioral indicators detected.</p>
-            ) : (
-              <div className="mt-3 text-sm text-slate-300 space-y-2">
-                {Object.entries(result.behavior_signals).map(([key, value]) => (
-                  <div key={key} className="flex items-center justify-between">
-                    <span className="text-slate-400">{key.replaceAll("_", " ")}</span>
-                    <span>{String(value)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="bg-carbon/80 border border-slate-700 rounded-3xl p-6">
-            <h2 className="font-display text-lg">Feed Hit Highlights</h2>
-            {feedHits.length === 0 ? (
-              <p className="text-sm text-slate-400 mt-3">No threat feed hits detected.</p>
-            ) : (
-              <ul className="mt-3 text-sm text-slate-300 space-y-2">
-                {feedHits.map(([key]) => (
-                  <li key={key}>• {key.replaceAll("_", " ")}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="mt-10 bg-carbon/80 border border-slate-700 rounded-3xl p-6">
-        <h2 className="font-display text-lg">URL & Reputation Findings</h2>
-        <div className="mt-4 grid md:grid-cols-2 gap-4">
-          {result.url_findings.length === 0 && (
-            <p className="text-sm text-slate-300">No URLs detected in this message.</p>
-          )}
-          {result.url_findings.map((finding, index) => (
-            <div key={index} className="bg-midnight border border-slate-700 rounded-2xl p-4">
-              <p className="text-xs text-slate-400">URL</p>
-              <p className="text-sm text-plasma break-all mt-1">{finding.url}</p>
-              <p className="text-xs text-slate-400 mt-3">Reputation</p>
-              <p className="text-sm mt-1">{finding.reputation}</p>
-              <p className="text-xs text-slate-400 mt-3">Domain Age</p>
-              <p className="text-sm mt-1">
-                {finding.domain_age_days !== null ? `${finding.domain_age_days} days` : "Unknown"}
-              </p>
-              <p className="text-xs text-slate-400 mt-3">Phishing Similarity</p>
-              <p className="text-sm mt-1">{finding.phishing_similarity}</p>
-              {finding.notes.length > 0 && (
-                <ul className="mt-3 text-xs text-slate-400 space-y-1">
-                  {finding.notes.map((note, noteIndex) => (
-                    <li key={noteIndex}>• {note}</li>
-                  ))}
-                </ul>
-              )}
-              <button
-                className="mt-4 px-3 py-2 text-xs rounded-full border border-slate-700 text-slate-300 hover:text-white"
-                onClick={() =>
-                  fetch("http://localhost:8000/report", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ url: finding.url, source: "results" }),
-                  })
-                }
-              >
-                Report Suspicious URL
-              </button>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="mt-10 bg-carbon/80 border border-slate-700 rounded-3xl p-6">
-        <h2 className="font-display text-lg">Model Scores</h2>
-        <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {Object.entries(result.categories).map(([key, value]) => (
-            <div key={key} className="bg-midnight border border-slate-700 rounded-2xl p-4 text-center">
-              <p className="text-xs text-slate-400 uppercase">{key.replace("_", " ")}</p>
-              <p className="text-lg font-semibold mt-2">{Math.round(value * 100)}%</p>
-            </div>
-          ))}
         </div>
       </section>
     </div>

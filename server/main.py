@@ -102,6 +102,39 @@ class ExplainResponse(BaseModel):
     explanation: str
 
 
+class ThreatCasefile(BaseModel):
+    archetype: str
+    victim_persona: str
+    operator_tactic: str
+    attack_stage: str
+    next_move_prediction: str
+    possible_outcome: str
+    narrative: str
+    immediate_actions: List[str]
+    campaign_signature: List[str]
+    mutation_risk: int
+
+
+class ManipulationVector(BaseModel):
+    fear: int
+    urgency: int
+    authority: int
+    greed: int
+    trust: int
+    confusion: int
+    pressure_points: List[Dict[str, str]]
+    summary: str
+
+
+class ImpactForecast(BaseModel):
+    primary_target: str
+    likely_damage: str
+    loss_window: str
+    intervention_message: str
+    safe_alternative: str
+    escalation_path: List[str]
+
+
 class UrlFinding(BaseModel):
     url: str
     reputation: str
@@ -127,6 +160,9 @@ class AnalyzeResponse(BaseModel):
     highlights: List[str]
     confidence: Dict[str, float]
     behavior_signals: Dict[str, object]
+    threat_casefile: ThreatCasefile
+    manipulation_map: ManipulationVector
+    impact_forecast: ImpactForecast
     created_at: str
 
 
@@ -145,6 +181,9 @@ class ScanResponse(BaseModel):
     highlights: List[str]
     confidence: Dict[str, float]
     behavior_signals: Dict[str, object]
+    threat_casefile: ThreatCasefile
+    manipulation_map: ManipulationVector
+    impact_forecast: ImpactForecast
     created_at: str
 
 
@@ -171,6 +210,9 @@ def init_db() -> None:
             highlights TEXT,
             confidence TEXT,
             behavior_signals TEXT,
+            threat_casefile TEXT,
+            manipulation_map TEXT,
+            impact_forecast TEXT,
             created_at TEXT
         )
         """
@@ -195,6 +237,9 @@ def init_db() -> None:
         ("highlights", "TEXT"),
         ("confidence", "TEXT"),
         ("behavior_signals", "TEXT"),
+        ("threat_casefile", "TEXT"),
+        ("manipulation_map", "TEXT"),
+        ("impact_forecast", "TEXT"),
     ]:
         if column not in existing:
             cursor.execute(f"ALTER TABLE scans ADD COLUMN {column} {col_type}")
@@ -207,8 +252,8 @@ def store_scan(payload: AnalyzeResponse) -> None:
     cursor = conn.cursor()
     cursor.execute(
         """
-        INSERT INTO scans (id, input, scam_probability, risk_score, risk_level, categories, reasons, patterns, url_findings, threat_intel_status, scan_status, ai_provider, ai_model, highlights, confidence, behavior_signals, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO scans (id, input, scam_probability, risk_score, risk_level, categories, reasons, patterns, url_findings, threat_intel_status, scan_status, ai_provider, ai_model, highlights, confidence, behavior_signals, threat_casefile, manipulation_map, impact_forecast, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             payload.id,
@@ -227,6 +272,9 @@ def store_scan(payload: AnalyzeResponse) -> None:
             json.dumps(payload.highlights),
             json.dumps(payload.confidence),
             json.dumps(payload.behavior_signals),
+            json.dumps(payload.threat_casefile.model_dump()),
+            json.dumps(payload.manipulation_map.model_dump()),
+            json.dumps(payload.impact_forecast.model_dump()),
             payload.created_at,
         ),
     )
@@ -246,7 +294,7 @@ def update_scan(scan_id: str, payload: AnalyzeResponse) -> None:
     cursor.execute(
         """
         UPDATE scans
-        SET scam_probability = ?, risk_score = ?, risk_level = ?, categories = ?, reasons = ?, patterns = ?, url_findings = ?, threat_intel_status = ?, scan_status = ?, ai_provider = ?, ai_model = ?, highlights = ?, confidence = ?, behavior_signals = ?, created_at = ?
+        SET scam_probability = ?, risk_score = ?, risk_level = ?, categories = ?, reasons = ?, patterns = ?, url_findings = ?, threat_intel_status = ?, scan_status = ?, ai_provider = ?, ai_model = ?, highlights = ?, confidence = ?, behavior_signals = ?, threat_casefile = ?, manipulation_map = ?, impact_forecast = ?, created_at = ?
         WHERE id = ?
         """,
         (
@@ -264,6 +312,9 @@ def update_scan(scan_id: str, payload: AnalyzeResponse) -> None:
             json.dumps(payload.highlights),
             json.dumps(payload.confidence),
             json.dumps(payload.behavior_signals),
+            json.dumps(payload.threat_casefile.model_dump()),
+            json.dumps(payload.manipulation_map.model_dump()),
+            json.dumps(payload.impact_forecast.model_dump()),
             payload.created_at,
             scan_id,
         ),
@@ -333,6 +384,299 @@ def confidence_band(score: float) -> Dict[str, float]:
         "high": min(1.0, score + 0.15),
         "confidence": confidence,
     }
+
+
+def unique_list(items: List[str]) -> List[str]:
+    return list(dict.fromkeys(item for item in items if item))
+
+
+def default_manipulation_map() -> ManipulationVector:
+    return ManipulationVector(
+        fear=0,
+        urgency=0,
+        authority=0,
+        greed=0,
+        trust=0,
+        confusion=0,
+        pressure_points=[],
+        summary="No strong manipulation signals detected.",
+    )
+
+
+def default_impact_forecast() -> ImpactForecast:
+    return ImpactForecast(
+        primary_target="Unknown",
+        likely_damage="Low-confidence scenario",
+        loss_window="Unknown",
+        intervention_message="Pause and verify before taking further action.",
+        safe_alternative="Use the official site or a trusted contact path.",
+        escalation_path=[],
+    )
+
+
+def build_manipulation_map(
+    normalized: str,
+    patterns: List[str],
+    findings: List[UrlFinding],
+    behavior_signals: Dict[str, object],
+    highlights: List[str],
+) -> ManipulationVector:
+    pressure_points: List[Dict[str, str]] = []
+    scores = {
+        "fear": 12 if "account suspended" in normalized else 0,
+        "urgency": 18 if any(term in normalized for term in URGENCY) else 0,
+        "authority": 16 if any(term in normalized for term in AUTHORITY) else 0,
+        "greed": 18 if any(term in normalized for term in REWARD) else 0,
+        "trust": 10 if any(finding.phishing_similarity == "High" for finding in findings) else 0,
+        "confusion": 8 if int(behavior_signals.get("hidden_inputs", 0) or 0) > 5 else 0,
+    }
+
+    signal_map = [
+        ("fear", ["account suspended", "security alert", "locked", "fraud alert"], "Uses fear of loss to speed up compliance."),
+        ("urgency", URGENCY, "Pushes the victim to act before thinking."),
+        ("authority", AUTHORITY, "Borrows legitimacy from trusted institutions."),
+        ("greed", REWARD, "Uses reward bait to lower skepticism."),
+        ("trust", ["secure", "verify", "login"], "Imitates trusted workflows or brands."),
+        ("confusion", ["update", "support", "limited time"], "Creates cognitive overload and rushed decisions."),
+    ]
+
+    for label, phrases, meaning in signal_map:
+        for phrase in phrases:
+            if phrase in normalized:
+                pressure_points.append({"label": label.title(), "trigger": phrase, "meaning": meaning})
+                break
+
+    if any(finding.phishing_similarity == "High" for finding in findings):
+        pressure_points.append(
+            {
+                "label": "Trust",
+                "trigger": "brand impersonation",
+                "meaning": "The page mimics a recognizable brand to bypass suspicion.",
+            }
+        )
+        scores["trust"] += 14
+
+    if int(behavior_signals.get("popup_count", 0) or 0) > 0:
+        pressure_points.append(
+            {
+                "label": "Urgency",
+                "trigger": "conversion popup",
+                "meaning": "Overlay UI is likely being used to force a fast choice.",
+            }
+        )
+        scores["urgency"] += 10
+
+    if int(behavior_signals.get("password_fields", 0) or 0) > 0:
+        pressure_points.append(
+            {
+                "label": "Trust",
+                "trigger": "password prompt",
+                "meaning": "The attacker is steering the victim into a credential handoff moment.",
+            }
+        )
+        scores["trust"] += 8
+
+    if not pressure_points and highlights:
+        for hit in highlights[:3]:
+            pressure_points.append(
+                {
+                    "label": "Signal",
+                    "trigger": hit,
+                    "meaning": "Suspicious language surfaced during analysis.",
+                }
+            )
+
+    for key in scores:
+        scores[key] = min(100, scores[key])
+
+    dominant = max(scores, key=scores.get)
+    summary = f"Primary manipulation mode: {dominant}. The content is trying to steer behavior through {dominant}-based pressure."
+    return ManipulationVector(
+        fear=scores["fear"],
+        urgency=scores["urgency"],
+        authority=scores["authority"],
+        greed=scores["greed"],
+        trust=scores["trust"],
+        confusion=scores["confusion"],
+        pressure_points=pressure_points[:6],
+        summary=summary,
+    )
+
+
+def build_threat_casefile(
+    normalized: str,
+    patterns: List[str],
+    findings: List[UrlFinding],
+    behavior_signals: Dict[str, object],
+    reasons: List[str],
+    highlights: List[str],
+) -> ThreatCasefile:
+    has_crypto = any("crypto" in pattern.lower() for pattern in patterns) or "wallet" in normalized or "bitcoin" in normalized
+    has_reward = any("reward" in pattern.lower() for pattern in patterns) or "you won" in normalized
+    has_authority = any("authority" in pattern.lower() for pattern in patterns) or any(term in normalized for term in AUTHORITY)
+    has_financial = any("financial" in pattern.lower() for pattern in patterns) or any(term in normalized for term in FINANCIAL)
+    has_login = any("Credential harvesting keyword" in note for finding in findings for note in finding.notes)
+    brand_spoof = any(finding.phishing_similarity == "High" for finding in findings)
+    popup_count = int(behavior_signals.get("popup_count", 0) or 0)
+    hidden_inputs = int(behavior_signals.get("hidden_inputs", 0) or 0)
+    password_fields = int(behavior_signals.get("password_fields", 0) or 0)
+
+    if has_crypto:
+        archetype = "Wallet Drain Operation"
+        victim_persona = "Crypto holder or airdrop hunter"
+        operator_tactic = "Seed-phrase capture and urgency-driven wallet approval"
+        next_move_prediction = "The flow will push for wallet connect, seed phrase entry, or token approval."
+        possible_outcome = "Rapid asset drain across the connected wallet."
+    elif has_reward and has_financial:
+        archetype = "Prize-to-Payment Funnel"
+        victim_persona = "Impulse-driven user reacting to a reward hook"
+        operator_tactic = "Bait the victim with winnings, then introduce a fee or payment step"
+        next_move_prediction = "After the click, the victim will be asked for fees, transfer details, or gift cards."
+        possible_outcome = "Small initial payment loss followed by repeated extraction attempts."
+    elif has_authority and has_financial:
+        archetype = "Pressure Authority Fraud"
+        victim_persona = "User conditioned to comply with institutional requests"
+        operator_tactic = "Borrow trust from a bank, government, or security team and create compliance pressure"
+        next_move_prediction = "The attacker will escalate with deadlines, account warnings, or verification demands."
+        possible_outcome = "Credential theft or direct financial transfer under pressure."
+    elif has_login or brand_spoof or password_fields > 0:
+        archetype = "Credential Harvest Campaign"
+        victim_persona = "Account owner trying to resolve a fake security issue"
+        operator_tactic = "Spoof brand trust and steer the victim into a login capture surface"
+        next_move_prediction = "The next screen will likely request usernames, passwords, OTPs, or recovery details."
+        possible_outcome = "Account takeover followed by lateral fraud."
+    else:
+        archetype = "Adaptive Social Engineering"
+        victim_persona = "General-purpose target"
+        operator_tactic = "Blend emotional triggers with ambiguous trust signals"
+        next_move_prediction = "The attacker will probe for any action that reveals trust, identity, or money."
+        possible_outcome = "Escalation into follow-up phishing, payment fraud, or credential theft."
+
+    if password_fields > 0 or hidden_inputs > 5:
+        attack_stage = "Credential capture surface detected"
+    elif popup_count > 0 or bool(behavior_signals.get("meta_refresh")):
+        attack_stage = "Conversion environment detected"
+    elif findings:
+        attack_stage = "Traffic acquisition / lure stage"
+    else:
+        attack_stage = "Initial social contact"
+
+    signature_tokens = unique_list(
+        highlights[:4]
+        + [reason.lower() for reason in reasons[:4]]
+        + [finding.phishing_similarity.lower() for finding in findings if finding.phishing_similarity != "Low"]
+        + [note.lower() for finding in findings for note in finding.notes[:2]]
+    )
+    mutation_risk = min(
+        100,
+        20
+        + (18 if len(patterns) >= 3 else 0)
+        + (20 if brand_spoof else 0)
+        + (15 if popup_count > 0 else 0)
+        + (15 if hidden_inputs > 5 else 0)
+        + (12 if has_crypto else 0)
+        + (10 if any(finding.reputation == "Known scam domain" for finding in findings) else 0),
+    )
+
+    immediate_actions = unique_list(
+        [
+            "Do not click any further links or submit any credentials.",
+            "Verify the request using a trusted channel outside the message or page.",
+            "Block or report the sender/domain to stop repeat exposure.",
+            "If interaction already happened, rotate passwords and revoke sessions immediately." if password_fields > 0 or has_login or brand_spoof else "",
+            "If a wallet was connected, revoke token approvals and move assets to a safe wallet." if has_crypto else "",
+            "Capture the evidence and share the case summary with your security team." if findings else "",
+        ]
+    )[:5]
+
+    narrative = (
+        f"This looks like a {archetype.lower()} targeting a {victim_persona.lower()}. "
+        f"The attacker is using {operator_tactic.lower()} and the current stage suggests {attack_stage.lower()}."
+    )
+
+    return ThreatCasefile(
+        archetype=archetype,
+        victim_persona=victim_persona,
+        operator_tactic=operator_tactic,
+        attack_stage=attack_stage,
+        next_move_prediction=next_move_prediction,
+        possible_outcome=possible_outcome,
+        narrative=narrative,
+        immediate_actions=immediate_actions,
+        campaign_signature=signature_tokens[:6],
+        mutation_risk=mutation_risk,
+    )
+
+
+def build_impact_forecast(
+    casefile: ThreatCasefile,
+    manipulation_map: ManipulationVector,
+    behavior_signals: Dict[str, object],
+    findings: List[UrlFinding],
+) -> ImpactForecast:
+    primary_target = "Credentials"
+    likely_damage = "Account takeover and follow-on fraud"
+    loss_window = "Minutes after interaction"
+    intervention_message = "Stop here. This flow is optimized to extract trust before you realize what is happening."
+    safe_alternative = "Open the official website manually or contact the organization through a verified number."
+    escalation_path = [
+        "Initial lure or authority hook",
+        "Trust-building step",
+        "Sensitive action request",
+        "Account abuse or payment extraction",
+    ]
+
+    if casefile.archetype == "Wallet Drain Operation":
+        primary_target = "Wallet approvals and recovery secrets"
+        likely_damage = "Token approvals, asset drain, and irreversible crypto loss"
+        loss_window = "Seconds to minutes after wallet interaction"
+        intervention_message = "Do not connect or sign. This pattern is consistent with wallet-drain setup behavior."
+        safe_alternative = "Leave the page, verify the project from official channels, and inspect approvals in a trusted wallet dashboard."
+        escalation_path = [
+            "Airdrop or reward lure",
+            "Wallet connect request",
+            "Approval or signature trap",
+            "Automated asset drain",
+        ]
+    elif casefile.archetype == "Prize-to-Payment Funnel":
+        primary_target = "Immediate payment or personal details"
+        likely_damage = "Advance-fee loss followed by repeated payment prompts"
+        loss_window = "Within the same conversation or click path"
+        intervention_message = "This reward flow is likely bait. Real prizes do not demand urgent fees or gift-card style payments."
+        safe_alternative = "Ignore the reward path and verify promotions only from official brand channels."
+        escalation_path = [
+            "Reward message",
+            "Eligibility confirmation",
+            "Fee or transfer request",
+            "Repeated extraction attempt",
+        ]
+    elif casefile.archetype == "Pressure Authority Fraud":
+        primary_target = "Compliance under stress"
+        likely_damage = "Credential reset, direct transfer, or identity exposure"
+        loss_window = "During the same urgent session"
+        intervention_message = "This flow is using institutional pressure. Slow down and verify outside the message."
+    elif int(behavior_signals.get("password_fields", 0) or 0) > 0:
+        primary_target = "Credentials and sessions"
+        likely_damage = "Password capture, OTP harvesting, and session hijack"
+        loss_window = "Immediately after form submission"
+        escalation_path = [
+            "Spoofed login surface",
+            "Credential capture",
+            "OTP or recovery prompt",
+            "Session takeover",
+        ]
+
+    if any(finding.reputation == "Known scam domain" for finding in findings):
+        intervention_message = "This destination has direct scam indicators. Do not proceed."
+
+    return ImpactForecast(
+        primary_target=primary_target,
+        likely_damage=likely_damage,
+        loss_window=loss_window,
+        intervention_message=intervention_message,
+        safe_alternative=safe_alternative,
+        escalation_path=escalation_path,
+    )
 
 
 def fallback_explanation(payload: ExplainRequest) -> str:
@@ -781,13 +1125,15 @@ def apply_intel_update(
     intel_reasons: List[str],
     intel_status: Dict[str, str],
 ) -> AnalyzeResponse:
+    normalized = normalize_text(response.input)
+    patterns, pattern_score = match_patterns(normalized)
     url_score, url_reasons = score_urls(url_findings)
     risk_score_value = compute_risk_score(
         1 - response.categories["safe"],
-        match_patterns(normalize_text(response.input))[1],
+        pattern_score,
         min(100, url_score + intel_score),
     )
-    reasons = build_reasons(match_patterns(normalize_text(response.input))[0], url_reasons + intel_reasons)
+    reasons = build_reasons(patterns, url_reasons + intel_reasons)
     scan_status = "complete"
     response.risk_score = risk_score_value
     response.scam_probability = int(round(max((1 - response.categories["safe"]) * 100, risk_score_value * 0.9)))
@@ -796,6 +1142,9 @@ def apply_intel_update(
     response.url_findings = url_findings
     response.threat_intel_status = intel_status
     response.scan_status = scan_status
+    response.threat_casefile = build_threat_casefile(normalized, patterns, url_findings, response.behavior_signals, reasons, response.highlights)
+    response.manipulation_map = build_manipulation_map(normalized, patterns, url_findings, response.behavior_signals, response.highlights)
+    response.impact_forecast = build_impact_forecast(response.threat_casefile, response.manipulation_map, response.behavior_signals, url_findings)
     response.created_at = datetime.now(timezone.utc).isoformat()
     return response
 
@@ -816,6 +1165,9 @@ def build_scan_response(response: AnalyzeResponse, url: str) -> ScanResponse:
         highlights=response.highlights,
         confidence=response.confidence,
         behavior_signals=response.behavior_signals,
+        threat_casefile=response.threat_casefile,
+        manipulation_map=response.manipulation_map,
+        impact_forecast=response.impact_forecast,
         created_at=response.created_at,
     )
 
@@ -869,6 +1221,9 @@ async def analyze_text_and_urls(
 
     threat_status = base_threat_status(urls)
     scan_status = "pending" if urls and any(value == "pending" for value in threat_status.values()) else "complete"
+    threat_casefile = build_threat_casefile(normalized, patterns, url_findings, behavior_signals, reasons, highlights)
+    manipulation_map = build_manipulation_map(normalized, patterns, url_findings, behavior_signals, highlights)
+    impact_forecast = build_impact_forecast(threat_casefile, manipulation_map, behavior_signals, url_findings)
 
     response = AnalyzeResponse(
         id=str(uuid.uuid4()),
@@ -882,11 +1237,14 @@ async def analyze_text_and_urls(
         url_findings=url_findings,
         threat_intel_status=threat_status,
         scan_status=scan_status,
-        ai_provider=MODEL_PROVIDER if MODEL_API_URL and MODEL_API_KEY else "rules",
-        ai_model=MODEL_NAME if MODEL_API_URL and MODEL_API_KEY else "rules-engine",
+        ai_provider=MODEL_PROVIDER if MODEL_API_URL and MODEL_API_KEY else "heuristic-intelligence",
+        ai_model=MODEL_NAME if MODEL_API_URL and MODEL_API_KEY else "behavioral-risk-engine",
         highlights=highlights,
         confidence=confidence,
         behavior_signals=behavior_signals,
+        threat_casefile=threat_casefile,
+        manipulation_map=manipulation_map,
+        impact_forecast=impact_forecast,
         created_at=datetime.now(timezone.utc).isoformat(),
     )
 
@@ -933,7 +1291,7 @@ async def history() -> List[AnalyzeResponse]:
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, input, scam_probability, risk_score, risk_level, categories, reasons, patterns, url_findings, threat_intel_status, scan_status, ai_provider, ai_model, highlights, confidence, behavior_signals, created_at FROM scans ORDER BY created_at DESC LIMIT 50"
+        "SELECT id, input, scam_probability, risk_score, risk_level, categories, reasons, patterns, url_findings, threat_intel_status, scan_status, ai_provider, ai_model, highlights, confidence, behavior_signals, threat_casefile, manipulation_map, impact_forecast, created_at FROM scans ORDER BY created_at DESC LIMIT 50"
     )
     rows = cursor.fetchall()
     conn.close()
@@ -953,12 +1311,15 @@ async def history() -> List[AnalyzeResponse]:
                 url_findings=[UrlFinding(**finding) for finding in json.loads(row[8])],
                 threat_intel_status=json.loads(row[9]) if row[9] else base_threat_status([]),
                 scan_status=row[10] or "complete",
-                ai_provider=row[11] or "rules",
-                ai_model=row[12] or "rules-engine",
+                ai_provider=row[11] or "heuristic-intelligence",
+                ai_model=row[12] or "behavioral-risk-engine",
                 highlights=json.loads(row[13]) if row[13] else [],
                 confidence=json.loads(row[14]) if row[14] else {"low": 0.0, "mid": 0.0, "high": 0.0, "confidence": 0.0},
                 behavior_signals=json.loads(row[15]) if row[15] else {},
-                created_at=row[16],
+                threat_casefile=ThreatCasefile(**json.loads(row[16])) if row[16] else build_threat_casefile("", [], [], {}, [], []),
+                manipulation_map=ManipulationVector(**json.loads(row[17])) if row[17] else default_manipulation_map(),
+                impact_forecast=ImpactForecast(**json.loads(row[18])) if row[18] else default_impact_forecast(),
+                created_at=row[19],
             )
         )
     return results
@@ -969,7 +1330,7 @@ async def scan_detail(scan_id: str) -> AnalyzeResponse:
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, input, scam_probability, risk_score, risk_level, categories, reasons, patterns, url_findings, threat_intel_status, scan_status, ai_provider, ai_model, highlights, confidence, behavior_signals, created_at FROM scans WHERE id = ?",
+        "SELECT id, input, scam_probability, risk_score, risk_level, categories, reasons, patterns, url_findings, threat_intel_status, scan_status, ai_provider, ai_model, highlights, confidence, behavior_signals, threat_casefile, manipulation_map, impact_forecast, created_at FROM scans WHERE id = ?",
         (scan_id,),
     )
     row = cursor.fetchone()
@@ -988,12 +1349,15 @@ async def scan_detail(scan_id: str) -> AnalyzeResponse:
         url_findings=[UrlFinding(**finding) for finding in json.loads(row[8])],
         threat_intel_status=json.loads(row[9]) if row[9] else base_threat_status([]),
         scan_status=row[10] or "complete",
-        ai_provider=row[11] or "rules",
-        ai_model=row[12] or "rules-engine",
+        ai_provider=row[11] or "heuristic-intelligence",
+        ai_model=row[12] or "behavioral-risk-engine",
         highlights=json.loads(row[13]) if row[13] else [],
         confidence=json.loads(row[14]) if row[14] else {"low": 0.0, "mid": 0.0, "high": 0.0, "confidence": 0.0},
         behavior_signals=json.loads(row[15]) if row[15] else {},
-        created_at=row[16],
+        threat_casefile=ThreatCasefile(**json.loads(row[16])) if row[16] else build_threat_casefile("", [], [], {}, [], []),
+        manipulation_map=ManipulationVector(**json.loads(row[17])) if row[17] else default_manipulation_map(),
+        impact_forecast=ImpactForecast(**json.loads(row[18])) if row[18] else default_impact_forecast(),
+        created_at=row[19],
     )
 
 

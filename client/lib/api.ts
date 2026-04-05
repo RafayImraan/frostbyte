@@ -36,6 +36,36 @@ export type AnalysisResult = {
     confidence: number;
   };
   behavior_signals: Record<string, unknown>;
+  threat_casefile: {
+    archetype: string;
+    victim_persona: string;
+    operator_tactic: string;
+    attack_stage: string;
+    next_move_prediction: string;
+    possible_outcome: string;
+    narrative: string;
+    immediate_actions: string[];
+    campaign_signature: string[];
+    mutation_risk: number;
+  };
+  manipulation_map: {
+    fear: number;
+    urgency: number;
+    authority: number;
+    greed: number;
+    trust: number;
+    confusion: number;
+    pressure_points: { label: string; trigger: string; meaning: string }[];
+    summary: string;
+  };
+  impact_forecast: {
+    primary_target: string;
+    likely_damage: string;
+    loss_window: string;
+    intervention_message: string;
+    safe_alternative: string;
+    escalation_path: string[];
+  };
   created_at: string;
 };
 
@@ -112,10 +142,40 @@ function normalizeResult(data: AnalysisResult): AnalysisResult {
       virustotal: "unknown",
     },
     scan_status: data.scan_status ?? "complete",
-    ai_provider: data.ai_provider ?? "rules",
-    ai_model: data.ai_model ?? "rules-engine",
+    ai_provider: data.ai_provider ?? "heuristic-intelligence",
+    ai_model: data.ai_model ?? "behavioral-risk-engine",
     highlights: data.highlights ?? [],
     confidence: data.confidence ?? { low: 0, mid: 0, high: 0, confidence: 0 },
     behavior_signals: data.behavior_signals ?? {},
+    threat_casefile: data.threat_casefile ?? {
+      archetype: "Unclassified Threat",
+      victim_persona: "General-purpose target",
+      operator_tactic: "Unknown",
+      attack_stage: "Unknown",
+      next_move_prediction: "No prediction available.",
+      possible_outcome: "Unknown",
+      narrative: "No casefile available.",
+      immediate_actions: [],
+      campaign_signature: [],
+      mutation_risk: 0,
+    },
+    manipulation_map: data.manipulation_map ?? {
+      fear: 0,
+      urgency: 0,
+      authority: 0,
+      greed: 0,
+      trust: 0,
+      confusion: 0,
+      pressure_points: [],
+      summary: "No manipulation map available.",
+    },
+    impact_forecast: data.impact_forecast ?? {
+      primary_target: "Unknown",
+      likely_damage: "Unknown",
+      loss_window: "Unknown",
+      intervention_message: "Pause and verify before taking action.",
+      safe_alternative: "Use an official and trusted channel.",
+      escalation_path: [],
+    },
   };
 }

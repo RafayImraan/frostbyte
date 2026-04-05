@@ -70,6 +70,20 @@ h1 {
   border: 1px solid #1e293b;
 }
 
+.label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: #94a3b8;
+}
+
+.big-copy {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #e2e8f0;
+}
+
 .row {
   display: flex;
   justify-content: space-between;

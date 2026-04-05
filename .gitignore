@@ -1,14 +1,11 @@
-﻿# Node
-node_modules/
-client/.next/
-
-# Python
-__pycache__/
-*.pyc
+.venv/
 server/.venv/
-
-# SQLite
+client/.next/
+client/node_modules/
+server/__pycache__/
 server/data/*.db
-
-# Env
-.env
+server/.env
+.git_broken_backup/
+*.pyc
+*.pyo
+*.log

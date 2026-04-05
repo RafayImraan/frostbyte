@@ -9,7 +9,7 @@ function updatePopup(result) {
     result.scan_status === "pending"
       ? "Scanning threat feeds..."
       : result.scan_status === "offline"
-      ? "Offline heuristic scan"
+      ? "Local protection mode"
       : "Scan complete";
 
   document.getElementById("status").textContent = statusText;
@@ -21,6 +21,9 @@ function updatePopup(result) {
   document.getElementById("probability").textContent = `${result.scam_probability}%`;
   document.getElementById("feeds").textContent = formatFeeds(result.threat_intel_status);
   document.getElementById("confidence").textContent = `${Math.round((result.confidence?.confidence ?? 0) * 100)}%`;
+  document.getElementById("casefile").textContent = result.threat_casefile?.archetype || "Unknown casefile";
+  document.getElementById("next-move").textContent = result.threat_casefile?.next_move_prediction || "--";
+  document.getElementById("intervention").textContent = result.impact_forecast?.intervention_message || "--";
 
   const meter = document.getElementById("meter-fill");
   const pct = Math.min(100, Math.max(0, result.scam_probability));
@@ -39,6 +42,9 @@ function updatePopup(result) {
     risk_level: result.risk_level,
     scam_probability: result.scam_probability,
     reasons: result.reasons,
+    casefile: result.threat_casefile?.archetype,
+    next_move: result.threat_casefile?.next_move_prediction,
+    safe_alternative: result.impact_forecast?.safe_alternative,
   };
   window.__latestReport = JSON.stringify(summary, null, 2);
   window.__latestUrl = result.url || "";
