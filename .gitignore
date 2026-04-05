@@ -5,6 +5,7 @@ client/node_modules/
 server/__pycache__/
 server/data/*.db
 server/.env
+server/vercel.backend.env
 .git_broken_backup/
 DEMO_SCRIPT.md
 *.pyc

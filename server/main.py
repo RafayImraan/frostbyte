@@ -43,8 +43,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DATA_DIR = Path(__file__).resolve().parent / "data"
-DATABASE_PATH = DATA_DIR / "scan_history.db"
+IS_VERCEL = os.getenv("VERCEL") == "1"
+LOCAL_DATA_DIR = Path(__file__).resolve().parent / "data"
+DATA_DIR = Path("/tmp/cybershield-data") if IS_VERCEL else LOCAL_DATA_DIR
+DATABASE_PATH = Path(os.getenv("DATABASE_PATH", str(DATA_DIR / "scan_history.db")))
+DATABASE_AVAILABLE = True
 
 URL_REGEX = re.compile(r"(https?://[^\s]+)")
 
@@ -199,99 +202,115 @@ class ScanResponse(BaseModel):
     created_at: str
 
 
+def get_db_connection() -> sqlite3.Connection:
+    return sqlite3.connect(DATABASE_PATH)
+
+
 def init_db() -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DATABASE_PATH)
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS scans (
-            id TEXT PRIMARY KEY,
-            input TEXT,
-            scam_probability INTEGER,
-            risk_score INTEGER,
-            risk_level TEXT,
-            categories TEXT,
-            reasons TEXT,
-            patterns TEXT,
-            url_findings TEXT,
-            threat_intel_status TEXT,
-            scan_status TEXT,
-            ai_provider TEXT,
-            ai_model TEXT,
-            highlights TEXT,
-            confidence TEXT,
-            behavior_signals TEXT,
-            threat_casefile TEXT,
-            manipulation_map TEXT,
-            impact_forecast TEXT,
-            created_at TEXT
+    global DATABASE_AVAILABLE
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS scans (
+                id TEXT PRIMARY KEY,
+                input TEXT,
+                scam_probability INTEGER,
+                risk_score INTEGER,
+                risk_level TEXT,
+                categories TEXT,
+                reasons TEXT,
+                patterns TEXT,
+                url_findings TEXT,
+                threat_intel_status TEXT,
+                scan_status TEXT,
+                ai_provider TEXT,
+                ai_model TEXT,
+                highlights TEXT,
+                confidence TEXT,
+                behavior_signals TEXT,
+                threat_casefile TEXT,
+                manipulation_map TEXT,
+                impact_forecast TEXT,
+                created_at TEXT
+            )
+            """
         )
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS reports (
-            id TEXT PRIMARY KEY,
-            url TEXT,
-            source TEXT,
-            notes TEXT,
-            created_at TEXT
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS reports (
+                id TEXT PRIMARY KEY,
+                url TEXT,
+                source TEXT,
+                notes TEXT,
+                created_at TEXT
+            )
+            """
         )
-        """
-    )
-    existing = {row[1] for row in cursor.execute("PRAGMA table_info(scans)").fetchall()}
-    for column, col_type in [
-        ("threat_intel_status", "TEXT"),
-        ("scan_status", "TEXT"),
-        ("ai_provider", "TEXT"),
-        ("ai_model", "TEXT"),
-        ("highlights", "TEXT"),
-        ("confidence", "TEXT"),
-        ("behavior_signals", "TEXT"),
-        ("threat_casefile", "TEXT"),
-        ("manipulation_map", "TEXT"),
-        ("impact_forecast", "TEXT"),
-    ]:
-        if column not in existing:
-            cursor.execute(f"ALTER TABLE scans ADD COLUMN {column} {col_type}")
-    conn.commit()
-    conn.close()
+        existing = {row[1] for row in cursor.execute("PRAGMA table_info(scans)").fetchall()}
+        for column, col_type in [
+            ("threat_intel_status", "TEXT"),
+            ("scan_status", "TEXT"),
+            ("ai_provider", "TEXT"),
+            ("ai_model", "TEXT"),
+            ("highlights", "TEXT"),
+            ("confidence", "TEXT"),
+            ("behavior_signals", "TEXT"),
+            ("threat_casefile", "TEXT"),
+            ("manipulation_map", "TEXT"),
+            ("impact_forecast", "TEXT"),
+        ]:
+            if column not in existing:
+                cursor.execute(f"ALTER TABLE scans ADD COLUMN {column} {col_type}")
+        conn.commit()
+        conn.close()
+        DATABASE_AVAILABLE = True
+        logger.info("Database initialized at %s", DATABASE_PATH)
+    except Exception as exc:
+        DATABASE_AVAILABLE = False
+        logger.exception("Database initialization failed; running without persistent history: %s", exc)
 
 
 def store_scan(payload: AnalyzeResponse) -> None:
-    conn = sqlite3.connect(DATABASE_PATH)
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        INSERT INTO scans (id, input, scam_probability, risk_score, risk_level, categories, reasons, patterns, url_findings, threat_intel_status, scan_status, ai_provider, ai_model, highlights, confidence, behavior_signals, threat_casefile, manipulation_map, impact_forecast, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            payload.id,
-            payload.input,
-            payload.scam_probability,
-            payload.risk_score,
-            payload.risk_level,
-            json.dumps(payload.categories),
-            json.dumps(payload.reasons),
-            json.dumps(payload.patterns),
-            json.dumps([finding.model_dump() for finding in payload.url_findings]),
-            json.dumps(payload.threat_intel_status),
-            payload.scan_status,
-            payload.ai_provider,
-            payload.ai_model,
-            json.dumps(payload.highlights),
-            json.dumps(payload.confidence),
-            json.dumps(payload.behavior_signals),
-            json.dumps(payload.threat_casefile.model_dump()),
-            json.dumps(payload.manipulation_map.model_dump()),
-            json.dumps(payload.impact_forecast.model_dump()),
-            payload.created_at,
-        ),
-    )
-    conn.commit()
-    conn.close()
+    if not DATABASE_AVAILABLE:
+        return
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO scans (id, input, scam_probability, risk_score, risk_level, categories, reasons, patterns, url_findings, threat_intel_status, scan_status, ai_provider, ai_model, highlights, confidence, behavior_signals, threat_casefile, manipulation_map, impact_forecast, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                payload.id,
+                payload.input,
+                payload.scam_probability,
+                payload.risk_score,
+                payload.risk_level,
+                json.dumps(payload.categories),
+                json.dumps(payload.reasons),
+                json.dumps(payload.patterns),
+                json.dumps([finding.model_dump() for finding in payload.url_findings]),
+                json.dumps(payload.threat_intel_status),
+                payload.scan_status,
+                payload.ai_provider,
+                payload.ai_model,
+                json.dumps(payload.highlights),
+                json.dumps(payload.confidence),
+                json.dumps(payload.behavior_signals),
+                json.dumps(payload.threat_casefile.model_dump()),
+                json.dumps(payload.manipulation_map.model_dump()),
+                json.dumps(payload.impact_forecast.model_dump()),
+                payload.created_at,
+            ),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as exc:
+        logger.exception("Failed to store scan: %s", exc)
 
 
 def redact_response(response: AnalyzeResponse) -> AnalyzeResponse:
@@ -301,58 +320,68 @@ def redact_response(response: AnalyzeResponse) -> AnalyzeResponse:
 
 
 def update_scan(scan_id: str, payload: AnalyzeResponse) -> None:
-    conn = sqlite3.connect(DATABASE_PATH)
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        UPDATE scans
-        SET scam_probability = ?, risk_score = ?, risk_level = ?, categories = ?, reasons = ?, patterns = ?, url_findings = ?, threat_intel_status = ?, scan_status = ?, ai_provider = ?, ai_model = ?, highlights = ?, confidence = ?, behavior_signals = ?, threat_casefile = ?, manipulation_map = ?, impact_forecast = ?, created_at = ?
-        WHERE id = ?
-        """,
-        (
-            payload.scam_probability,
-            payload.risk_score,
-            payload.risk_level,
-            json.dumps(payload.categories),
-            json.dumps(payload.reasons),
-            json.dumps(payload.patterns),
-            json.dumps([finding.model_dump() for finding in payload.url_findings]),
-            json.dumps(payload.threat_intel_status),
-            payload.scan_status,
-            payload.ai_provider,
-            payload.ai_model,
-            json.dumps(payload.highlights),
-            json.dumps(payload.confidence),
-            json.dumps(payload.behavior_signals),
-            json.dumps(payload.threat_casefile.model_dump()),
-            json.dumps(payload.manipulation_map.model_dump()),
-            json.dumps(payload.impact_forecast.model_dump()),
-            payload.created_at,
-            scan_id,
-        ),
-    )
-    conn.commit()
-    conn.close()
+    if not DATABASE_AVAILABLE:
+        return
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE scans
+            SET scam_probability = ?, risk_score = ?, risk_level = ?, categories = ?, reasons = ?, patterns = ?, url_findings = ?, threat_intel_status = ?, scan_status = ?, ai_provider = ?, ai_model = ?, highlights = ?, confidence = ?, behavior_signals = ?, threat_casefile = ?, manipulation_map = ?, impact_forecast = ?, created_at = ?
+            WHERE id = ?
+            """,
+            (
+                payload.scam_probability,
+                payload.risk_score,
+                payload.risk_level,
+                json.dumps(payload.categories),
+                json.dumps(payload.reasons),
+                json.dumps(payload.patterns),
+                json.dumps([finding.model_dump() for finding in payload.url_findings]),
+                json.dumps(payload.threat_intel_status),
+                payload.scan_status,
+                payload.ai_provider,
+                payload.ai_model,
+                json.dumps(payload.highlights),
+                json.dumps(payload.confidence),
+                json.dumps(payload.behavior_signals),
+                json.dumps(payload.threat_casefile.model_dump()),
+                json.dumps(payload.manipulation_map.model_dump()),
+                json.dumps(payload.impact_forecast.model_dump()),
+                payload.created_at,
+                scan_id,
+            ),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as exc:
+        logger.exception("Failed to update scan %s: %s", scan_id, exc)
 
 
 def store_report(payload: ReportRequest) -> None:
-    conn = sqlite3.connect(DATABASE_PATH)
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        INSERT INTO reports (id, url, source, notes, created_at)
-        VALUES (?, ?, ?, ?, ?)
-        """,
-        (
-            str(uuid.uuid4()),
-            payload.url,
-            payload.source or "web",
-            payload.notes or "",
-            datetime.now(timezone.utc).isoformat(),
-        ),
-    )
-    conn.commit()
-    conn.close()
+    if not DATABASE_AVAILABLE:
+        return
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO reports (id, url, source, notes, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                str(uuid.uuid4()),
+                payload.url,
+                payload.source or "web",
+                payload.notes or "",
+                datetime.now(timezone.utc).isoformat(),
+            ),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as exc:
+        logger.exception("Failed to store report: %s", exc)
 
 
 def extract_urls(text: str) -> List[str]:
@@ -1300,13 +1329,19 @@ async def scan_page(payload: ScanPageRequest, background_tasks: BackgroundTasks)
 
 @app.get("/history", response_model=List[AnalyzeResponse])
 async def history() -> List[AnalyzeResponse]:
-    conn = sqlite3.connect(DATABASE_PATH)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id, input, scam_probability, risk_score, risk_level, categories, reasons, patterns, url_findings, threat_intel_status, scan_status, ai_provider, ai_model, highlights, confidence, behavior_signals, threat_casefile, manipulation_map, impact_forecast, created_at FROM scans ORDER BY created_at DESC LIMIT 50"
-    )
-    rows = cursor.fetchall()
-    conn.close()
+    if not DATABASE_AVAILABLE:
+        return []
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, input, scam_probability, risk_score, risk_level, categories, reasons, patterns, url_findings, threat_intel_status, scan_status, ai_provider, ai_model, highlights, confidence, behavior_signals, threat_casefile, manipulation_map, impact_forecast, created_at FROM scans ORDER BY created_at DESC LIMIT 50"
+        )
+        rows = cursor.fetchall()
+        conn.close()
+    except Exception as exc:
+        logger.exception("Failed to load history: %s", exc)
+        return []
 
     results: List[AnalyzeResponse] = []
     for row in rows:
@@ -1339,14 +1374,20 @@ async def history() -> List[AnalyzeResponse]:
 
 @app.get("/scan/{scan_id}", response_model=AnalyzeResponse)
 async def scan_detail(scan_id: str) -> AnalyzeResponse:
-    conn = sqlite3.connect(DATABASE_PATH)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id, input, scam_probability, risk_score, risk_level, categories, reasons, patterns, url_findings, threat_intel_status, scan_status, ai_provider, ai_model, highlights, confidence, behavior_signals, threat_casefile, manipulation_map, impact_forecast, created_at FROM scans WHERE id = ?",
-        (scan_id,),
-    )
-    row = cursor.fetchone()
-    conn.close()
+    if not DATABASE_AVAILABLE:
+        raise HTTPException(status_code=404, detail="Scan history unavailable")
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, input, scam_probability, risk_score, risk_level, categories, reasons, patterns, url_findings, threat_intel_status, scan_status, ai_provider, ai_model, highlights, confidence, behavior_signals, threat_casefile, manipulation_map, impact_forecast, created_at FROM scans WHERE id = ?",
+            (scan_id,),
+        )
+        row = cursor.fetchone()
+        conn.close()
+    except Exception as exc:
+        logger.exception("Failed to load scan %s: %s", scan_id, exc)
+        raise HTTPException(status_code=500, detail="Scan lookup failed")
     if not row:
         raise HTTPException(status_code=404, detail="Scan not found")
     return AnalyzeResponse(
@@ -1401,24 +1442,38 @@ async def explain(payload: ExplainRequest) -> ExplainResponse:
 
 @app.get("/metrics")
 async def metrics() -> Dict[str, object]:
-    conn = sqlite3.connect(DATABASE_PATH)
-    cursor = conn.cursor()
-    week_ago = datetime.now(timezone.utc).timestamp() - 7 * 24 * 60 * 60
+    if not DATABASE_AVAILABLE:
+        return {
+            "blocked_week": 0,
+            "total_risk_saved": 0,
+            "top_reports": [],
+        }
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        week_ago = datetime.now(timezone.utc).timestamp() - 7 * 24 * 60 * 60
 
-    cursor.execute(
-        "SELECT COUNT(*) FROM scans WHERE risk_level = 'High' AND strftime('%s', created_at) >= ?",
-        (int(week_ago),),
-    )
-    blocked_week = cursor.fetchone()[0]
+        cursor.execute(
+            "SELECT COUNT(*) FROM scans WHERE risk_level = 'High' AND strftime('%s', created_at) >= ?",
+            (int(week_ago),),
+        )
+        blocked_week = cursor.fetchone()[0]
 
-    cursor.execute("SELECT SUM(risk_score) FROM scans WHERE risk_level = 'High'")
-    total_risk_saved = cursor.fetchone()[0] or 0
+        cursor.execute("SELECT SUM(risk_score) FROM scans WHERE risk_level = 'High'")
+        total_risk_saved = cursor.fetchone()[0] or 0
 
-    cursor.execute(
-        "SELECT url, COUNT(*) AS c FROM reports GROUP BY url ORDER BY c DESC LIMIT 5"
-    )
-    top_reports = [{"url": row[0], "count": row[1]} for row in cursor.fetchall()]
-    conn.close()
+        cursor.execute(
+            "SELECT url, COUNT(*) AS c FROM reports GROUP BY url ORDER BY c DESC LIMIT 5"
+        )
+        top_reports = [{"url": row[0], "count": row[1]} for row in cursor.fetchall()]
+        conn.close()
+    except Exception as exc:
+        logger.exception("Failed to load metrics: %s", exc)
+        return {
+            "blocked_week": 0,
+            "total_risk_saved": 0,
+            "top_reports": [],
+        }
 
     return {
         "blocked_week": blocked_week,
