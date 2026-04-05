@@ -14,8 +14,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "AI CyberShield",
-  description: "Real-Time Scam & Fraud Detection System",
+  title: "CyberShield",
+  description: "Real-time scam detection and intervention platform",
 };
 
 export default function RootLayout({

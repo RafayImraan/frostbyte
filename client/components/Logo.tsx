@@ -1,12 +1,14 @@
-﻿export function Logo() {
+export function Logo() {
   return (
     <div className="flex items-center gap-3">
-      <div className="h-10 w-10 rounded-xl bg-neon text-midnight font-bold flex items-center justify-center">
-        CS
+      <div className="brand-mark">
+        <span className="brand-mark-core" />
+        <span className="brand-mark-ring brand-mark-ring-one" />
+        <span className="brand-mark-ring brand-mark-ring-two" />
       </div>
       <div>
-        <p className="text-lg font-display">AI CyberShield</p>
-        <p className="text-xs text-slate-400">Real-Time Scam Defense</p>
+        <p className="text-lg font-display text-white">CyberShield</p>
+        <p className="text-xs tracking-[0.18em] uppercase text-slate-500">Scam Defense Platform</p>
       </div>
     </div>
   );

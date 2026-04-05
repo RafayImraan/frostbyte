@@ -6,6 +6,7 @@ server/__pycache__/
 server/data/*.db
 server/.env
 .git_broken_backup/
+DEMO_SCRIPT.md
 *.pyc
 *.pyo
 *.log

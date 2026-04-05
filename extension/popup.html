@@ -2,18 +2,23 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>AI CyberShield</title>
+    <title>CyberShield</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
     <div class="container">
-      <h1>AI CyberShield</h1>
-      <p class="subtitle">Real-time scam protection</p>
+      <div class="topbar">
+        <div>
+          <h1>CyberShield</h1>
+          <p class="subtitle">Live interception console</p>
+        </div>
+        <div class="status-pill">Browser Active</div>
+      </div>
 
       <div id="status" class="status">Waiting for scan...</div>
-      <button id="scan-now" class="scan-btn">Scan Now</button>
+      <button id="scan-now" class="scan-btn">Refresh Current Tab</button>
 
-      <div class="card">
+      <div class="card hero-card">
         <div class="row">
           <span>Risk Level</span>
           <strong id="risk-level">--</strong>
@@ -28,42 +33,38 @@
       </div>
 
       <div class="card">
-        <div class="row">
-          <span>Threat Feeds</span>
-          <strong id="feeds">--</strong>
-        </div>
-        <div class="row">
-          <span>Feed Updated</span>
-          <strong id="feed-updated">--</strong>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="row">
-          <span>Confidence</span>
-          <strong id="confidence">--</strong>
-        </div>
-      </div>
-
-      <div class="card">
         <div class="label">Threat Casefile</div>
         <div id="casefile" class="big-copy">Waiting for scan...</div>
         <div id="next-move" class="small">--</div>
       </div>
 
       <div class="card">
-        <div class="label">Intervention</div>
+        <div class="label">Intervention Guidance</div>
         <div id="intervention" class="big-copy">--</div>
       </div>
 
-      <ul id="reasons" class="reasons"></ul>
-
-      <div class="actions">
-        <button id="copy-report" class="ghost-btn">Copy Report</button>
-        <button id="report-admin" class="ghost-btn">Report to Admin</button>
+      <div class="card two-col">
+        <div>
+          <div class="label">Threat Feeds</div>
+          <div id="feeds" class="small-copy">--</div>
+        </div>
+        <div>
+          <div class="label">Confidence</div>
+          <div id="confidence" class="big-copy">--</div>
+        </div>
       </div>
 
       <div class="card">
+        <div class="label">Signal Summary</div>
+        <ul id="reasons" class="reasons"></ul>
+      </div>
+
+      <div class="actions">
+        <button id="copy-report" class="ghost-btn">Copy Report</button>
+        <button id="report-admin" class="ghost-btn">Share Indicator</button>
+      </div>
+
+      <div class="card settings-card">
         <div class="row">
           <span>Auto-Block</span>
           <label class="switch">
@@ -80,7 +81,11 @@
         </div>
         <div class="row">
           <span>History Scan</span>
-          <button id="scan-history" class="ghost-btn">Scan Now</button>
+          <button id="scan-history" class="ghost-btn">Run</button>
+        </div>
+        <div class="row muted">
+          <span>Feed Updated</span>
+          <strong id="feed-updated">--</strong>
         </div>
         <p id="history-summary" class="small">No history scan yet.</p>
       </div>
