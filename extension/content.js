@@ -15,25 +15,39 @@ function collectBehaviorSignals() {
   const forms = Array.from(document.querySelectorAll("form"));
   const passwordInputs = Array.from(document.querySelectorAll('input[type="password"]'));
   const emailInputs = Array.from(document.querySelectorAll('input[type="email"], input[name*="email" i]'));
+  const otpInputs = Array.from(
+    document.querySelectorAll('input[name*="otp" i], input[name*="code" i], input[id*="otp" i], input[id*="code" i], input[autocomplete="one-time-code"]')
+  );
   const hiddenInputs = Array.from(document.querySelectorAll('input[type="hidden"]'));
   const walletPatterns = /(0x[a-fA-F0-9]{40})|([13][a-km-zA-HJ-NP-Z1-9]{25,34})|(bc1[ac-hj-np-z02-9]{25,60})/g;
   const hasWallet = walletPatterns.test(document.body ? document.body.innerText : "");
   const popups = Array.from(document.querySelectorAll('[role="dialog"], .modal, .popup, .overlay'));
   const metaRefresh = document.querySelector('meta[http-equiv="refresh"]');
+  const pageText = document.body ? document.body.innerText.toLowerCase() : "";
+  const bankSignals = ["your bank", "account suspended", "security team", "verify immediately", "one-time code", "priority verification"];
+  const bankSignalHits = bankSignals.filter((phrase) => pageText.includes(phrase));
 
   let behaviorScore = 0;
   const reasons = [];
   if (passwordInputs.length > 0) {
-    behaviorScore += 10;
+    behaviorScore += 18;
     reasons.push("Login form detected on page");
   }
   if (hiddenInputs.length > 5) {
-    behaviorScore += 8;
+    behaviorScore += 12;
     reasons.push("Hidden inputs detected (possible credential harvesting)");
   }
   if (emailInputs.length > 0 && passwordInputs.length === 0) {
-    behaviorScore += 6;
+    behaviorScore += 8;
     reasons.push("Email collection form detected");
+  }
+  if (emailInputs.length > 0 && passwordInputs.length > 0) {
+    behaviorScore += 10;
+    reasons.push("Credential handoff flow detected");
+  }
+  if (otpInputs.length > 0 || pageText.includes("one-time code") || pageText.includes("otp")) {
+    behaviorScore += 18;
+    reasons.push("OTP or one-time code collection detected");
   }
   if (popups.length > 0) {
     behaviorScore += 6;
@@ -47,15 +61,25 @@ function collectBehaviorSignals() {
     behaviorScore += 12;
     reasons.push("Crypto wallet address detected on page");
   }
+  if (bankSignalHits.length >= 2) {
+    behaviorScore += 14;
+    reasons.push("High-pressure bank impersonation language detected");
+  }
+  if (forms.length > 0 && passwordInputs.length > 0 && (otpInputs.length > 0 || pageText.includes("one-time code"))) {
+    behaviorScore += 18;
+    reasons.push("Credential and OTP capture sequence detected");
+  }
 
   return {
     form_count: forms.length,
     password_fields: passwordInputs.length,
+    email_fields: emailInputs.length,
+    otp_fields: otpInputs.length,
     hidden_inputs: hiddenInputs.length,
     popup_count: popups.length,
     meta_refresh: Boolean(metaRefresh),
     wallet_detected: hasWallet,
-    behavior_score: Math.min(25, behaviorScore),
+    behavior_score: Math.min(60, behaviorScore),
     behavior_reasons: reasons,
   };
 }

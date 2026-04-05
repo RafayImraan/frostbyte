@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8000";
+const API_BASE = "https://frostbyte-two.vercel.app";
 const FEED_REFRESH_MINUTES = 5;
 const HISTORY_SCAN_LIMIT = 20;
 const lastScanAt = {};
@@ -36,6 +36,23 @@ async function scanUrl(payload) {
     throw new Error("Scan failed");
   }
   return response.json();
+}
+
+function riskRank(result) {
+  const levelRank = { Low: 1, Medium: 2, High: 3 };
+  return (levelRank[result?.risk_level] || 0) * 1000 + (result?.scam_probability || 0);
+}
+
+function storeScanForTab(tabId, result) {
+  chrome.storage.local.get(["latestScanByTab"], (data) => {
+    const latestScanByTab = data.latestScanByTab || {};
+    const existing = latestScanByTab[tabId];
+    if (!existing || riskRank(result) >= riskRank(existing) || result.scan_status === "pending") {
+      latestScanByTab[tabId] = result;
+      chrome.storage.local.set({ latestScanByTab });
+      safeRuntimeMessage({ type: "SCAN_UPDATED", result, tabId });
+    }
+  });
 }
 
 function safeRuntimeMessage(payload) {
@@ -102,12 +119,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "LOCAL_SCAN_RESULT") {
     const tabId = sender.tab ? sender.tab.id : "global";
-    chrome.storage.local.get(["latestScanByTab"], (data) => {
-      const latestScanByTab = data.latestScanByTab || {};
-      latestScanByTab[tabId] = message.result;
-      chrome.storage.local.set({ latestScanByTab });
-    });
-    safeRuntimeMessage({ type: "SCAN_UPDATED", result: message.result, tabId });
+    storeScanForTab(tabId, message.result);
     return;
   }
   if (message.type === "SCAN_HISTORY") {
@@ -136,34 +148,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
       lastScanAt[message.tabId] = now;
-      scanUrl({ url: tab.url })
-        .then((result) => {
-          chrome.storage.local.get(["latestScanByTab"], (data) => {
-            const latestScanByTab = data.latestScanByTab || {};
-            latestScanByTab[message.tabId] = result;
-            chrome.storage.local.set({ latestScanByTab });
-          });
-          safeRuntimeMessage({ type: "SCAN_UPDATED", result, tabId: message.tabId });
-          if (result.scan_status === "pending") {
-            const interval = setInterval(async () => {
-              const updated = await pollScan(result.id);
-              if (updated) {
-                chrome.storage.local.get(["latestScanByTab"], (data) => {
-                  const latestScanByTab = data.latestScanByTab || {};
-                  latestScanByTab[message.tabId] = updated;
-                  chrome.storage.local.set({ latestScanByTab });
-                });
-                safeRuntimeMessage({ type: "SCAN_UPDATED", result: updated, tabId: message.tabId });
-                if (updated.scan_status !== "pending") {
-                  clearInterval(interval);
+      chrome.tabs.sendMessage(message.tabId, { type: "REQUEST_SCAN" }, () => {
+        const err = chrome.runtime.lastError;
+        if (!err) {
+          return;
+        }
+        scanUrl({ url: tab.url })
+          .then((result) => {
+            storeScanForTab(message.tabId, result);
+            if (result.scan_status === "pending") {
+              const interval = setInterval(async () => {
+                const updated = await pollScan(result.id);
+                if (updated) {
+                  storeScanForTab(message.tabId, updated);
+                  if (updated.scan_status !== "pending") {
+                    clearInterval(interval);
+                  }
                 }
-              }
-            }, 3500);
-          }
-        })
-        .catch((error) => {
-          safeRuntimeMessage({ type: "SCAN_ERROR", error: error.message, tabId: message.tabId });
-        });
+              }, 3500);
+            }
+          })
+          .catch((error) => {
+            safeRuntimeMessage({ type: "SCAN_ERROR", error: error.message, tabId: message.tabId });
+          });
+      });
     });
     return;
   }
@@ -171,22 +179,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     scanPage(message.payload)
       .then(async (result) => {
         const tabId = sender.tab ? sender.tab.id : "global";
-        chrome.storage.local.get(["latestScanByTab"], (data) => {
-          const latestScanByTab = data.latestScanByTab || {};
-          latestScanByTab[tabId] = result;
-          chrome.storage.local.set({ latestScanByTab });
-        });
+        storeScanForTab(tabId, result);
         sendResponse({ ok: true, result });
         if (result.scan_status === "pending") {
           const interval = setInterval(async () => {
             const updated = await pollScan(result.id);
             if (updated) {
-              chrome.storage.local.get(["latestScanByTab"], (data) => {
-                const latestScanByTab = data.latestScanByTab || {};
-                latestScanByTab[tabId] = updated;
-                chrome.storage.local.set({ latestScanByTab });
-              });
-              safeRuntimeMessage({ type: "SCAN_UPDATED", result: updated, tabId });
+              storeScanForTab(tabId, updated);
               if (updated.scan_status !== "pending") {
                 clearInterval(interval);
               }

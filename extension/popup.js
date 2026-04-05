@@ -89,7 +89,7 @@ document.getElementById("report-admin").addEventListener("click", async () => {
   if (!window.__latestReport) return;
   await navigator.clipboard.writeText(window.__latestReport);
   if (window.__latestUrl) {
-    fetch("http://localhost:8000/report", {
+    fetch("https://frostbyte-two.vercel.app/report", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url: window.__latestUrl, source: "extension" }),

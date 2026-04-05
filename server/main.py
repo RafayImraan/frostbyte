@@ -1123,6 +1123,52 @@ def compute_risk_score(ai_score: float, pattern_score: int, url_score: int) -> i
     return max(0, min(100, int(round(weighted))))
 
 
+def compute_behavior_bonus(normalized: str, behavior_signals: Dict[str, object], findings: List[UrlFinding]) -> Tuple[int, List[str]]:
+    bonus = 0
+    reasons: List[str] = []
+
+    password_fields = int(behavior_signals.get("password_fields", 0) or 0)
+    email_fields = int(behavior_signals.get("email_fields", 0) or 0)
+    otp_fields = int(behavior_signals.get("otp_fields", 0) or 0)
+    hidden_inputs = int(behavior_signals.get("hidden_inputs", 0) or 0)
+    form_count = int(behavior_signals.get("form_count", 0) or 0)
+    popup_count = int(behavior_signals.get("popup_count", 0) or 0)
+
+    has_bank_urgency = any(term in normalized for term in ["your bank", "account suspended", "security team", "verify immediately"])
+    has_credential_language = any(term in normalized for term in ["password", "login", "verify", "otp", "security code", "one-time code"])
+    brand_spoof = any(finding.phishing_similarity == "High" for finding in findings)
+
+    if password_fields > 0:
+        bonus += 16
+        reasons.append("Credential password field detected")
+    if email_fields > 0:
+        bonus += 8
+        reasons.append("Login identity field detected")
+    if otp_fields > 0 or "one-time code" in normalized or "otp" in normalized:
+        bonus += 18
+        reasons.append("One-time code capture pattern detected")
+    if hidden_inputs >= 3:
+        bonus += 10
+        reasons.append("Hidden form fields suggest staged credential collection")
+    if form_count > 0 and has_credential_language:
+        bonus += 10
+        reasons.append("Sensitive verification form detected")
+    if popup_count > 0:
+        bonus += 6
+        reasons.append("Overlay or conversion surface detected")
+    if has_bank_urgency and (password_fields > 0 or otp_fields > 0):
+        bonus += 20
+        reasons.append("Bank impersonation is paired with credential capture")
+    if has_bank_urgency and hidden_inputs >= 3:
+        bonus += 10
+        reasons.append("Urgent account warning paired with hidden workflow fields")
+    if brand_spoof and has_credential_language:
+        bonus += 12
+        reasons.append("Brand-style trust cues are steering toward credential handoff")
+
+    return min(55, bonus), list(dict.fromkeys(reasons))
+
+
 def risk_level(score: int) -> str:
     if score >= 75:
         return "High"
@@ -1248,13 +1294,15 @@ async def analyze_text_and_urls(
     behavior_signals = behavior_signals or {}
     behavior_score = int(behavior_signals.get("behavior_score", 0))
     behavior_reasons = behavior_signals.get("behavior_reasons", [])
-
-    risk_score_value = compute_risk_score(ai_primary, pattern_score, min(100, url_score + behavior_score))
+    behavior_bonus, behavior_bonus_reasons = compute_behavior_bonus(normalized, behavior_signals, url_findings)
+    combined_behavior_score = min(100, url_score + behavior_score)
+    risk_score_value = min(100, compute_risk_score(ai_primary, pattern_score, combined_behavior_score) + behavior_bonus)
     scam_probability = int(round(max(ai_primary * 100, risk_score_value * 0.9)))
     risk = risk_level(risk_score_value)
 
     reasons = build_reasons(patterns, url_reasons)
     reasons.extend(behavior_reasons)
+    reasons.extend(behavior_bonus_reasons)
     if not reasons and scam_probability > 60:
         reasons.append("Statistical anomaly detected by AI model")
     if not reasons:

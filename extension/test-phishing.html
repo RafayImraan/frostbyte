@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SecureBank Verification Portal</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #08101f;
+        --panel: rgba(10, 18, 34, 0.9);
+        --line: rgba(90, 140, 210, 0.24);
+        --text: #ebf2ff;
+        --muted: #9fb1d5;
+        --danger: #ff6b81;
+        --warn: #ffd166;
+        --accent: #7ae7ff;
+        --glow: rgba(122, 231, 255, 0.16);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background:
+          radial-gradient(circle at 20% 20%, rgba(88, 162, 255, 0.18), transparent 30%),
+          radial-gradient(circle at 80% 10%, rgba(255, 90, 110, 0.18), transparent 28%),
+          linear-gradient(180deg, #0a1120 0%, #07101d 100%);
+        color: var(--text);
+      }
+
+      .shell {
+        width: min(1100px, calc(100% - 48px));
+        margin: 0 auto;
+        padding: 40px 0 72px;
+      }
+
+      .alert {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 14px 18px;
+        border: 1px solid rgba(255, 107, 129, 0.35);
+        border-radius: 18px;
+        background: rgba(255, 107, 129, 0.1);
+        box-shadow: 0 0 0 1px rgba(255, 107, 129, 0.08) inset;
+      }
+
+      .alert strong {
+        color: #ffe7ec;
+      }
+
+      .hero {
+        margin-top: 26px;
+        display: grid;
+        grid-template-columns: 1.15fr 0.85fr;
+        gap: 28px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        padding: 28px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      .brand-mark {
+        width: 52px;
+        height: 52px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(135deg, rgba(0, 177, 255, 0.3), rgba(122, 231, 255, 0.12));
+        border: 1px solid rgba(122, 231, 255, 0.3);
+        color: var(--accent);
+        font-weight: 700;
+      }
+
+      .micro {
+        margin: 0;
+        font-size: 12px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      h1 {
+        margin: 18px 0 12px;
+        font-size: clamp(2rem, 4vw, 3.4rem);
+        line-height: 1.05;
+      }
+
+      p {
+        color: var(--muted);
+        line-height: 1.7;
+      }
+
+      .feature-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 22px;
+      }
+
+      .pill {
+        padding: 10px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(122, 231, 255, 0.18);
+        background: rgba(122, 231, 255, 0.08);
+        color: #dffbff;
+        font-size: 13px;
+      }
+
+      .countdown {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 24px;
+        padding: 18px 20px;
+        border-radius: 20px;
+        background: rgba(255, 209, 102, 0.08);
+        border: 1px solid rgba(255, 209, 102, 0.24);
+      }
+
+      .timer {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--warn);
+      }
+
+      .form-card {
+        position: relative;
+        overflow: hidden;
+      }
+
+      .form-card::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at top right, rgba(122, 231, 255, 0.14), transparent 34%);
+        pointer-events: none;
+      }
+
+      .status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 18px;
+        padding: 10px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 107, 129, 0.24);
+        background: rgba(255, 107, 129, 0.1);
+        color: #ffe0e6;
+        font-size: 13px;
+      }
+
+      form {
+        display: grid;
+        gap: 14px;
+      }
+
+      label {
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      input,
+      select {
+        width: 100%;
+        padding: 14px 16px;
+        border-radius: 16px;
+        border: 1px solid rgba(96, 118, 158, 0.38);
+        background: rgba(4, 9, 20, 0.9);
+        color: var(--text);
+        outline: none;
+      }
+
+      .button-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      button {
+        padding: 15px 16px;
+        border: 0;
+        border-radius: 16px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .danger {
+        background: linear-gradient(135deg, #ff6b81, #ff4568);
+        color: white;
+        box-shadow: 0 18px 36px rgba(255, 69, 104, 0.25);
+      }
+
+      .secondary {
+        background: rgba(122, 231, 255, 0.1);
+        color: #d9fbff;
+        border: 1px solid rgba(122, 231, 255, 0.2);
+      }
+
+      .trust-grid {
+        margin-top: 26px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+      }
+
+      .trust-card {
+        padding: 18px;
+        border-radius: 18px;
+        border: 1px solid rgba(96, 118, 158, 0.24);
+        background: rgba(7, 14, 28, 0.78);
+      }
+
+      .fine-print {
+        margin-top: 18px;
+        font-size: 12px;
+        color: #7b8caf;
+      }
+
+      .footer-note {
+        margin-top: 28px;
+        padding: 18px 20px;
+        border-radius: 18px;
+        background: rgba(122, 231, 255, 0.08);
+        border: 1px solid rgba(122, 231, 255, 0.18);
+      }
+
+      @media (max-width: 900px) {
+        .hero {
+          grid-template-columns: 1fr;
+        }
+
+        .trust-grid,
+        .button-row {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="alert">
+        <div>
+          <strong>Urgent security notice:</strong>
+          Your bank noticed suspicious activity and limited account access. Verify immediately to avoid account suspension.
+        </div>
+        <span class="pill">Session expires in 08:42</span>
+      </div>
+
+      <section class="hero">
+        <div class="panel">
+          <div class="brand">
+            <div class="brand-mark">SB</div>
+            <div>
+              <p class="micro">Secure Banking Access Gateway</p>
+              <strong>SecureBank Verification Center</strong>
+            </div>
+          </div>
+
+          <h1>Immediate verification required to keep your online access active.</h1>
+          <p>
+            We detected irregular activity on your account and temporarily restricted transfers, cards, and login sessions.
+            Complete priority verification now to restore full access and prevent permanent lockout.
+          </p>
+
+          <div class="feature-strip">
+            <span class="pill">Account suspension warning</span>
+            <span class="pill">Priority review queue</span>
+            <span class="pill">24/7 security team notice</span>
+          </div>
+
+          <div class="countdown">
+            <div>
+              <p class="micro">Limited Time Verification Window</p>
+              <strong>Failure to respond may trigger card freeze and incoming payment holds.</strong>
+            </div>
+            <div class="timer">08:42</div>
+          </div>
+
+          <div class="footer-note">
+            Please use the same email, password, and one-time code tied to your primary banking profile so the security team can restore your session.
+          </div>
+        </div>
+
+        <div class="panel form-card">
+          <div class="status-chip">Security team review pending</div>
+          <form action="https://example.com/verify" method="post">
+            <div>
+              <label for="email">Banking email</label>
+              <input id="email" type="email" name="email" placeholder="name@example.com" />
+            </div>
+            <div>
+              <label for="password">Password</label>
+              <input id="password" type="password" name="password" placeholder="Enter your password" />
+            </div>
+            <div>
+              <label for="otp">One-time security code</label>
+              <input id="otp" type="text" name="otp" placeholder="6-digit code from SMS or app" />
+            </div>
+            <div>
+              <label for="region">Verification path</label>
+              <select id="region" name="region">
+                <option>Standard restoration</option>
+                <option>Priority recovery</option>
+                <option>International hold release</option>
+              </select>
+            </div>
+
+            <input type="hidden" name="ticket" value="SEC-48291" />
+            <input type="hidden" name="severity" value="high" />
+            <input type="hidden" name="workflow" value="credential_review" />
+            <input type="hidden" name="channel" value="email_notice" />
+            <input type="hidden" name="priority" value="urgent" />
+            <input type="hidden" name="restore" value="session" />
+
+            <div class="button-row">
+              <button class="danger" type="submit">Verify Immediately</button>
+              <button class="secondary" type="button">Contact Support Desk</button>
+            </div>
+          </form>
+
+          <p class="fine-print">
+            By continuing, you confirm that the information entered is accurate and authorize our security team to review your credentials for fraud prevention.
+          </p>
+        </div>
+      </section>
+
+      <section class="trust-grid">
+        <div class="trust-card">
+          <p class="micro">Security Update</p>
+          <strong>Unusual payment activity flagged</strong>
+          <p>Incoming transfers and external payments may remain paused until this review is completed.</p>
+        </div>
+        <div class="trust-card">
+          <p class="micro">Recovery Notice</p>
+          <strong>Priority restoration available</strong>
+          <p>Users who verify now receive immediate access restoration without secondary delays.</p>
+        </div>
+        <div class="trust-card">
+          <p class="micro">Support Advisory</p>
+          <strong>Do not close this browser session</strong>
+          <p>Leaving the portal may invalidate the security ticket and require a new verification request.</p>
+        </div>
+      </section>
+    </div>
+  </body>
+  </html>

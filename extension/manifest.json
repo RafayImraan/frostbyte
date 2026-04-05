@@ -8,7 +8,7 @@
     "default_title": "AI CyberShield"
   },
   "permissions": ["storage", "activeTab", "tabs", "alarms", "history"],
-  "host_permissions": ["http://localhost:8000/*", "<all_urls>"],
+  "host_permissions": ["https://frostbyte-two.vercel.app/*", "<all_urls>"],
   "background": {
     "service_worker": "background.js"
   },
