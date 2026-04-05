@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AnalysisResult, fetchHistory, getHistory } from "../../lib/api";
+import { AnalysisResult, fetchHistory, getApiBaseUrl, getHistory } from "../../lib/api";
 import { Logo } from "../../components/Logo";
 
 type Metrics = {
@@ -60,7 +60,7 @@ export default function HistoryPage() {
       }
     };
     load();
-    fetch("http://localhost:8000/metrics")
+    fetch(`${getApiBaseUrl()}/metrics`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => setMetrics(data))
       .catch(() => {});

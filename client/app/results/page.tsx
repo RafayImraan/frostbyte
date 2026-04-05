@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AnalysisResult, fetchScan, getLatest, saveLatest } from "../../lib/api";
+import { AnalysisResult, fetchScan, getApiBaseUrl, getLatest, saveLatest } from "../../lib/api";
 import { Logo } from "../../components/Logo";
 import { RiskMeter } from "../../components/RiskMeter";
 import { ThreatFeedStatus } from "../../components/ThreatFeedStatus";
@@ -259,7 +259,7 @@ export default function ResultsPage() {
               onClick={async () => {
                 setExplaining(true);
                 try {
-                  const res = await fetch("http://localhost:8000/explain", {
+                  const res = await fetch(`${getApiBaseUrl()}/explain`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({

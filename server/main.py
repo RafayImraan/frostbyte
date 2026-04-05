@@ -21,10 +21,22 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("cybershield")
 
+DEFAULT_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+
+def parse_allowed_origins() -> List[str]:
+    configured = os.getenv("CORS_ALLOW_ORIGINS", "")
+    origins = [origin.strip() for origin in configured.split(",") if origin.strip()]
+    return list(dict.fromkeys([*DEFAULT_ALLOWED_ORIGINS, *origins]))
+
+
 app = FastAPI(title="AI CyberShield API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=parse_allowed_origins(),
     allow_origin_regex=r"^chrome-extension://.*",
     allow_credentials=True,
     allow_methods=["*"],

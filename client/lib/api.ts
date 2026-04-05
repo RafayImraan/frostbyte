@@ -69,13 +69,19 @@ export type AnalysisResult = {
   created_at: string;
 };
 
+const FALLBACK_API_BASE_URL = "http://localhost:8000";
 const HISTORY_KEY = "cybershield-history";
 const LATEST_KEY = "cybershield-latest";
 let inMemoryLatest: AnalysisResult | null = null;
 let persistPreference: boolean = true;
 
+export function getApiBaseUrl() {
+  const configured = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+  return (configured || FALLBACK_API_BASE_URL).replace(/\/+$/, "");
+}
+
 export async function analyzeMessage(message: string, consent: boolean): Promise<AnalysisResult> {
-  const response = await fetch("http://localhost:8000/analyze", {
+  const response = await fetch(`${getApiBaseUrl()}/analyze`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text: message, consent }),
@@ -90,7 +96,7 @@ export async function analyzeMessage(message: string, consent: boolean): Promise
 }
 
 export async function fetchHistory(): Promise<AnalysisResult[]> {
-  const response = await fetch("http://localhost:8000/history");
+  const response = await fetch(`${getApiBaseUrl()}/history`);
   if (!response.ok) {
     throw new Error("Failed to fetch history.");
   }
@@ -99,7 +105,7 @@ export async function fetchHistory(): Promise<AnalysisResult[]> {
 }
 
 export async function fetchScan(scanId: string): Promise<AnalysisResult> {
-  const response = await fetch(`http://localhost:8000/scan/${scanId}`);
+  const response = await fetch(`${getApiBaseUrl()}/scan/${scanId}`);
   if (!response.ok) {
     throw new Error("Failed to fetch scan.");
   }
