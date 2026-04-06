@@ -145,3 +145,5 @@ It is built to answer five operational questions in real time:
 - Which psychological pressure tactics are being used?
 - What happens next if the user continues?
 - What is the safest immediate response?
+
+Live demo of project = https://frostbyte-xfvz.vercel.app/
